@@ -360,7 +360,7 @@ function App() {
                       </div>
                       <div className="mt-3 text-muted small d-flex align-items-center gap-2">
                         <Calendar size={14} />
-                        {new Date(expense.date).toLocaleString('en-US', {
+                        {new Date(expense.date_field).toLocaleString('en-US', {
                           year: 'numeric',
                           month: 'long',
                           day: 'numeric',
