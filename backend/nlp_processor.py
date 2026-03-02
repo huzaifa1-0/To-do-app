@@ -1,24 +1,17 @@
 import os
-from openai import OpenAI
-from pydantic import BaseModel
+import json
+from groq import Groq
 from dotenv import load_dotenv
 
-# Load environment variables from the .env file
+# Load environment variables
 load_dotenv()
 
-# Initialize the OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-# Define the exact JSON structure the AI must return
-class ExtractedExpense(BaseModel):
-    amount: float
-    currency: str
-    description: str
-    category: str
+# Initialize the Groq client
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 def parse_expense_text(user_input: str) -> dict:
     """
-    Takes a raw string and extracts structured data for the PostgreSQL database.
+    Takes a raw string and extracts structured data for the PostgreSQL database using Groq.
     """
     system_prompt = """
     You are an intelligent financial assistant for a smart To-Do and Expense tracking app. 
@@ -27,31 +20,33 @@ def parse_expense_text(user_input: str) -> dict:
     Rules:
     1. If no currency is explicitly mentioned, assume it is 'PKR'.
     2. Provide a concise, clear description of the expense.
-    3. You MUST classify the expense into one of the following exact categories: 
-       Food, Transport, Utilities, Entertainment, Groceries, Shopping, Health, Academic, or Other.
+    3. You MUST classify the expense into EXACTLY one of these categories: 
+       Food, Transport, Shopping, Bills, or Other.
+    4. You MUST respond in pure JSON format with the following keys exactly:
+       "amount" (number), "currency" (string), "description" (string), "category" (string).
     """
 
     try:
-        response = client.beta.chat.completions.parse(
-            model="gpt-4o-mini",
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant", # Fast, free, open-source model
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_input}
             ],
-            response_format=ExtractedExpense,
+            response_format={"type": "json_object"}, # Forces Groq to return valid JSON
+            temperature=0.0 # Keeps the AI focused and deterministic
         )
         
-        # Returns a clean Python dictionary ready for Django to save
-        return response.choices[0].message.parsed.model_dump()
+        # Parse the JSON string returned by Groq into a Python dictionary
+        result_dict = json.loads(response.choices[0].message.content)
+        return result_dict
         
     except Exception as e:
-        # Returns an error dictionary if the API call fails
         return {"error": str(e)}
 
 # --- Local Testing Block ---
-# This block only runs if you execute this specific file directly
 if __name__ == "__main__":
-    test_string = "I paid 2500 for the database server hosting today."
-    print("Testing AI parsing...")
+    test_string = "Paid 500 for a rickshaw ride to campus."
+    print("Testing Groq AI parsing...")
     result = parse_expense_text(test_string)
     print(result)
