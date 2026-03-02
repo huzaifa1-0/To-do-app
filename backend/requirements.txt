@@ -3,6 +3,7 @@ groq>=0.4.2
 pydantic>=2.6.3           
 python-dotenv>=1.0.1
 django-cors-headers>=4.3.1
+djangorestframework>=3.14.0
 gunicorn>=21.2.0           # The production web server
 psycopg-binary>=3.1.18     # PostgreSQL adapter
 dj-database-url>=2.1.0     # Easily reads Railway's database link
