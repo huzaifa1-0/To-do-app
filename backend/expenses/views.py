@@ -21,6 +21,7 @@ def expense_list_create(request):
     # GET request - listing and filtering
     queryset = Expense.objects.all()
     filter_param = request.query_params.get('filter')
+    category = request.query_params.get('category')
     
     # Optional: Custom date range
     start_date = request.query_params.get('start')
@@ -35,6 +36,9 @@ def expense_list_create(request):
         queryset = queryset.filter(date__range=[week_start, today])
     elif filter_param == 'month':
         queryset = queryset.filter(date__month=today.month, date__year=today.year)
+    elif category:
+        # Filter by category
+        queryset = queryset.filter(category=category)
     elif start_date and end_date:
         queryset = queryset.filter(date__range=[start_date, end_date])
 
