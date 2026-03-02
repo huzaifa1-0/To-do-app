@@ -7,7 +7,7 @@ from django.utils import timezone
 from datetime import timedelta
 from .models import Expense
 from .serializers import ExpenseSerializer
-from backend.nlp_processor import parse_expense_text
+from nlp_processor import parse_expense_text
 
 @api_view(['GET', 'POST'])
 def expense_list_create(request):

@@ -1,21 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { TrendingUp, Calendar, DollarSign } from 'lucide-react'
 import 'bootstrap/dist/css/bootstrap.min.css'
 
-const sampleExpenses = [
-  { id: 1, description: 'Office Supplies', amount: 150.00, category: 'Office', date: '2026-03-02' },
-  { id: 2, description: 'Client Lunch', amount: 85.50, category: 'Meals', date: '2026-03-02' },
-  { id: 3, description: 'Software Subscription', amount: 299.99, category: 'Technology', date: '2026-03-01' },
-  { id: 4, description: 'Taxi Fare', amount: 45.00, category: 'Transport', date: '2026-03-01' },
-  { id: 5, description: 'Hotel Accommodation', amount: 450.00, category: 'Travel', date: '2026-02-28' },
-  { id: 6, description: 'Team Building Event', amount: 800.00, category: 'Events', date: '2026-02-28' },
-  { id: 7, description: 'Printer Ink', amount: 120.00, category: 'Office', date: '2026-02-27' },
-  { id: 8, description: 'Business Dinner', amount: 210.75, category: 'Meals', date: '2026-02-27' },
-  { id: 9, description: 'Cloud Storage', amount: 99.99, category: 'Technology', date: '2026-02-26' },
-  { id: 10, description: 'Fuel', amount: 75.00, category: 'Transport', date: '2026-02-26' },
-  { id: 11, description: 'Conference Tickets', amount: 1200.00, category: 'Events', date: '2026-02-25' },
-  { id: 12, description: 'Flight Tickets', amount: 850.00, category: 'Travel', date: '2026-02-25' },
-]
+const API_BASE_URL = 'http://localhost:8000/api/expenses/'
 
 const categories = ['All', 'Office', 'Meals', 'Technology', 'Transport', 'Travel', 'Events']
 
@@ -25,30 +12,150 @@ function App() {
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [viewMode, setViewMode] = useState('recent') // 'recent', 'categories', 'category-expenses'
   const [searchInput, setSearchInput] = useState('')
+  
+  // API data states
+  const [totalExpenses, setTotalExpenses] = useState(0)
+  const [allExpenses, setAllExpenses] = useState([])
+  const [categorySummary, setCategorySummary] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  const totalExpenses = sampleExpenses.reduce((sum, expense) => sum + expense.amount, 0)
-
-  const recentExpenses = sampleExpenses.slice(0, 5)
-
-  // Get unique categories with their total amounts
-  const categoryTotals = sampleExpenses.reduce((acc, expense) => {
-    if (!acc[expense.category]) {
-      acc[expense.category] = { count: 0, total: 0 }
+  // Fetch data from APIs
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        
+        // Fetch total expenses
+        const totalRes = await fetch(`${API_BASE_URL}total/`)
+        const totalData = await totalRes.json()
+        setTotalExpenses(totalData.total_spending || 0)
+        
+        // Fetch all expenses
+        const expensesRes = await fetch(`${API_BASE_URL}`)
+        const expensesData = await expensesRes.json()
+        setAllExpenses(expensesData)
+        
+        // Fetch category summary
+        const summaryRes = await fetch(`${API_BASE_URL}summary/`)
+        const summaryData = await summaryRes.json()
+        console.log('Category Summary:', summaryData)
+        setCategorySummary(summaryData)
+        
+        setLoading(false)
+      } catch (error) {
+        console.error('Error fetching data:', error)
+        setLoading(false)
+      }
     }
-    acc[expense.category].count += 1
-    acc[expense.category].total += expense.amount
-    return acc
-  }, {})
+    
+    fetchData()
+  }, [])
 
-  const categoriesWithTotals = Object.entries(categoryTotals).map(([name, data]) => ({
-    name,
-    count: data.count,
-    total: data.total
+  // Get today's expenses for recent view
+  const [todayExpenses, setTodayExpenses] = useState([])
+  const [categoryExpenses, setCategoryExpenses] = useState([])
+  const [loadingExpenses, setLoadingExpenses] = useState(false)
+  const [processingAI, setProcessingAI] = useState(false)
+  const [aiMessage, setAiMessage] = useState('')
+
+  // Handle AI expense submission
+  const handleAIExpenseSubmit = async () => {
+    if (!searchInput.trim()) {
+      setAiMessage('⚠️ Please enter an expense description')
+      return
+    }
+
+    setProcessingAI(true)
+    setAiMessage('🤖 Processing with AI...')
+
+    try {
+      const res = await fetch(`${API_BASE_URL}ai-process/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          text: searchInput
+        })
+      })
+
+      const data = await res.json()
+
+      if (res.ok) {
+        setAiMessage(`✅ Saved! Rs. ${data.amount} in ${data.category}`)
+        setSearchInput('')
+        
+        // Refresh the data
+        const totalRes = await fetch(`${API_BASE_URL}total/`)
+        const totalData = await totalRes.json()
+        setTotalExpenses(totalData.total_spending || 0)
+        
+        const expensesRes = await fetch(`${API_BASE_URL}`)
+        const expensesData = await expensesRes.json()
+        setAllExpenses(expensesData)
+        
+        const summaryRes = await fetch(`${API_BASE_URL}summary/`)
+        const summaryData = await summaryRes.json()
+        setCategorySummary(summaryData)
+      } else {
+        setAiMessage(`❌ Error: ${data.error || 'Failed to save'}`)
+      }
+    } catch (error) {
+      console.error('AI processing error:', error)
+      setAiMessage('❌ Error connecting to server')
+    } finally {
+      setProcessingAI(false)
+      
+      // Clear message after 3 seconds
+      setTimeout(() => setAiMessage(''), 3000)
+    }
+  }
+
+  // Fetch today's expenses when in recent mode
+  useEffect(() => {
+    if (viewMode === 'recent') {
+      const fetchTodayExpenses = async () => {
+        try {
+          const res = await fetch(`${API_BASE_URL}?filter=today`)
+          const data = await res.json()
+          setTodayExpenses(data.slice(0, 5))
+        } catch (error) {
+          console.error('Error fetching today expenses:', error)
+        }
+      }
+      fetchTodayExpenses()
+    }
+  }, [viewMode])
+
+  // Fetch category expenses when a category is selected
+  useEffect(() => {
+    if (selectedCategory && viewMode === 'category-expenses') {
+      const fetchCategoryExpenses = async () => {
+        try {
+          setLoadingExpenses(true)
+          const res = await fetch(`${API_BASE_URL}?category=${selectedCategory}`)
+          const data = await res.json()
+          setCategoryExpenses(data)
+          setLoadingExpenses(false)
+        } catch (error) {
+          console.error('Error fetching category expenses:', error)
+          setLoadingExpenses(false)
+        }
+      }
+      fetchCategoryExpenses()
+    }
+  }, [selectedCategory, viewMode])
+
+  const recentExpenses = todayExpenses
+
+  // Get unique categories with their total amounts from API summary
+  const categoriesWithTotals = categorySummary.map(item => ({
+    name: item.category,
+    count: allExpenses.filter(e => e.category === item.category).length,
+    total: item.total
   }))
 
-  const filteredExpenses = selectedCategory
-    ? sampleExpenses.filter(expense => expense.category === selectedCategory)
-    : []
+  const filteredExpenses = categoryExpenses
 
   const expensesToShow = viewMode === 'category-expenses' ? filteredExpenses : recentExpenses
 
@@ -100,21 +207,24 @@ function App() {
                     type="text"
                     id="searchInput"
                     className="form-control form-control-lg border-0 shadow-sm"
-                    placeholder="🔍 Enter expenses for saving..."
+                    placeholder="🔍 Enter expense (e.g., 'Lunch $50')..."
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && console.log('Search:', searchInput)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleAIExpenseSubmit()}
+                    disabled={processingAI}
                     style={{ 
                       borderRadius: '50px',
                       paddingLeft: '25px',
                       paddingRight: '120px',
                       fontSize: '16px',
-                      boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
+                      boxShadow: '0 4px 15px rgba(0,0,0,0.1)',
+                      opacity: processingAI ? 0.7 : 1
                     }}
                   />
                   <button
                     className="btn btn-light position-absolute top-50 end-0 translate-middle-y me-2"
-                    onClick={() => console.log('Search:', searchInput)}
+                    onClick={handleAIExpenseSubmit}
+                    disabled={processingAI}
                     style={{ 
                       borderRadius: '50px',
                       padding: '8px 20px',
@@ -124,9 +234,14 @@ function App() {
                       whiteSpace: 'nowrap'
                     }}
                   >
-                    Enter →
+                    {processingAI ? '⏳ Processing...' : 'Enter →'}
                   </button>
                 </div>
+                {aiMessage && (
+                  <div className={`mt-2 text-center small fw-bold ${aiMessage.includes('✅') ? 'text-success' : aiMessage.includes('⚠️') ? 'text-warning' : 'text-danger'}`}>
+                    {aiMessage}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -137,7 +252,7 @@ function App() {
               <div>
                 <h4 className="mb-1 opacity-75">Total Expenses</h4>
                 <h2 className="fw-bold mb-1">Rs. {totalExpenses.toLocaleString('en-PK', { minimumFractionDigits: 2 })}</h2>
-                <p className="mb-0 small opacity-75">{sampleExpenses.length} expenses recorded</p>
+                <p className="mb-0 small opacity-75">{allExpenses.length} expenses recorded</p>
               </div>
             </div>
           </div>
@@ -177,31 +292,50 @@ function App() {
 
         {viewMode === 'categories' ? (
           <div className="row g-4">
-            {categoriesWithTotals.map(category => (
-              <div key={category.name} className="col-6 col-md-6">
-                <div 
-                  className="card h-100 shadow-sm" 
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => {
-                    setSelectedCategory(category.name)
-                    setViewMode('category-expenses')
-                  }}
-                >
-                  <div className="card-body">
-                    <h5 className="card-title">{category.name}</h5>
-                    <p className="card-text text-muted">
-                      {category.count} expense{category.count !== 1 ? 's' : ''}
-                    </p>
-                    <h4 className="text-primary fw-bold">Rs. {category.total.toLocaleString('en-PK', { minimumFractionDigits: 2 })}</h4>
-                  </div>
+            {loading ? (
+              <div className="text-center py-5">
+                <div className="spinner-border text-primary" role="status">
+                  <span className="visually-hidden">Loading categories...</span>
                 </div>
               </div>
-            ))}
+            ) : categoriesWithTotals.length === 0 ? (
+              <div className="col-12 text-center py-5">
+                <p className="text-muted mb-3">No categories available yet.</p>
+                <p className="text-muted small">Add some expenses to see categories.</p>
+              </div>
+            ) : (
+              categoriesWithTotals.map(category => (
+                <div key={category.name} className="col-6 col-md-6">
+                  <div 
+                    className="card h-100 shadow-sm" 
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => {
+                      setSelectedCategory(category.name)
+                      setViewMode('category-expenses')
+                    }}
+                  >
+                    <div className="card-body">
+                      <h5 className="card-title">{category.name}</h5>
+                      <p className="card-text text-muted">
+                        {category.count} expense{category.count !== 1 ? 's' : ''}
+                      </p>
+                      <h4 className="text-primary fw-bold">Rs. {category.total.toLocaleString('en-PK', { minimumFractionDigits: 2 })}</h4>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        ) : loading || loadingExpenses ? (
+          <div className="text-center py-5">
+            <div className="spinner-border text-primary" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </div>
           </div>
         ) : (
           <div className="row g-4">
             {expensesToShow.length === 0 ? (
-              <p className="text-muted">No expenses found for this category.</p>
+              <p className="text-muted">No expenses found.</p>
             ) : (
               expensesToShow.map(expense => (
                 <div key={expense.id} className="col-md-6">
