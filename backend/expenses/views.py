@@ -30,7 +30,7 @@ def expense_list_create(request):
     today = timezone.now().date()
 
     if filter_param == 'today':
-        queryset = queryset.filter(date=today)
+        queryset = queryset.filter(date__date=today)
     elif filter_param == 'week':
         week_start = today - timedelta(days=today.weekday())
         queryset = queryset.filter(date__range=[week_start, today])

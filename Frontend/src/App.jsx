@@ -350,10 +350,13 @@ function App() {
                       </div>
                       <div className="mt-3 text-muted small d-flex align-items-center gap-2">
                         <Calendar size={14} />
-                        {new Date(expense.date).toLocaleDateString('en-US', {
+                        {new Date(expense.date).toLocaleString('en-US', {
                           year: 'numeric',
                           month: 'long',
-                          day: 'numeric'
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: true
                         })}
                       </div>
                     </div>
