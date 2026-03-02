@@ -7,6 +7,7 @@ from django.utils import timezone
 from datetime import timedelta
 from .models import Expense
 from .serializers import ExpenseSerializer
+from backend.nlp_processor import parse_expense_text
 
 @api_view(['GET', 'POST'])
 def expense_list_create(request):
@@ -49,3 +50,34 @@ def expense_summary(request):
 def expense_total(request):
     total = Expense.objects.aggregate(total_spending=Sum('amount'))
     return Response(total)
+
+
+
+@api_view(['POST'])
+def process_ai_expense(request):
+    """Takes a natural language string, processes it with AI, and saves it."""
+    user_text = request.data.get('text')
+    
+    if not user_text:
+        return Response({"error": "No text provided"}, status=status.HTTP_400_BAD_REQUEST)
+        
+    # 1. Pass the text to your AI engine
+    ai_result = parse_expense_text(user_text)
+    
+    if "error" in ai_result:
+        return Response(ai_result, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+    # 2. Map the AI result to your friend's Serializer
+    serializer_data = {
+        'amount': ai_result['amount'],
+        'category': ai_result['category'],
+        'description': ai_result['description']
+    }
+    
+    # 3. Save to PostgreSQL
+    serializer = ExpenseSerializer(data=serializer_data)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
