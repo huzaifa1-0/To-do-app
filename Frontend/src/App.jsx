@@ -116,9 +116,19 @@ function App() {
     if (viewMode === 'recent') {
       const fetchTodayExpenses = async () => {
         try {
+          // First try to get today's expenses
           const res = await fetch(`${API_BASE_URL}?filter=today`)
           const data = await res.json()
-          setTodayExpenses(data.slice(0, 5))
+          
+          if (data.length > 0) {
+            // Show today's expenses if available
+            setTodayExpenses(data.slice(0, 5))
+          } else {
+            // Fallback: Get the 5 most recent expenses from all time
+            const allRes = await fetch(`${API_BASE_URL}`)
+            const allData = await allRes.json()
+            setTodayExpenses(allData.slice(0, 5))
+          }
         } catch (error) {
           console.error('Error fetching today expenses:', error)
         }
@@ -207,7 +217,7 @@ function App() {
                     type="text"
                     id="searchInput"
                     className="form-control form-control-lg border-0 shadow-sm"
-                    placeholder="🔍 Enter expense (e.g., 'Lunch $50')..."
+                    placeholder="🔍 Enter expense (e.g., 'Lunch Rs. 500')..."
                     value={searchInput}
                     onChange={(e) => setSearchInput(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleAIExpenseSubmit()}
