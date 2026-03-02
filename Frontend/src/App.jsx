@@ -24,6 +24,7 @@ function App() {
   const [showMenu, setShowMenu] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [viewMode, setViewMode] = useState('recent') // 'recent', 'categories', 'category-expenses'
+  const [searchInput, setSearchInput] = useState('')
 
   const totalExpenses = sampleExpenses.reduce((sum, expense) => sum + expense.amount, 0)
 
@@ -90,13 +91,54 @@ function App() {
           </div>
         )}
 
-        <div className="card shadow mb-4">
-          <div className="card-body d-flex align-items-center gap-4">
-            <TrendingUp size={40} className="text-success" />
-            <div>
-              <h4 className="mb-1">Total Expenses</h4>
-              <h2 className="fw-bold text-primary">Rs. {totalExpenses.toLocaleString('en-PK', { minimumFractionDigits: 2 })}</h2>
-              <p className="text-muted mb-0">{sampleExpenses.length} expenses recorded</p>
+        <div className="card shadow mb-4" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', border: 'none' }}>
+          <div className="card-body">
+            <div className="row g-3 align-items-end mb-3">
+              <div className="col-12">
+                <div className="position-relative">
+                  <input
+                    type="text"
+                    id="searchInput"
+                    className="form-control form-control-lg border-0 shadow-sm"
+                    placeholder="🔍 Enter expenses for saving..."
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && console.log('Search:', searchInput)}
+                    style={{ 
+                      borderRadius: '50px',
+                      paddingLeft: '25px',
+                      paddingRight: '120px',
+                      fontSize: '16px',
+                      boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
+                    }}
+                  />
+                  <button
+                    className="btn btn-light position-absolute top-50 end-0 translate-middle-y me-2"
+                    onClick={() => console.log('Search:', searchInput)}
+                    style={{ 
+                      borderRadius: '50px',
+                      padding: '8px 20px',
+                      fontWeight: '600',
+                      color: '#667eea',
+                      fontSize: '14px',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    Enter →
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="d-flex align-items-center gap-4 text-white">
+              <div className="bg-white rounded-circle p-3">
+                <TrendingUp size={40} className="text-success" />
+              </div>
+              <div>
+                <h4 className="mb-1 opacity-75">Total Expenses</h4>
+                <h2 className="fw-bold mb-1">Rs. {totalExpenses.toLocaleString('en-PK', { minimumFractionDigits: 2 })}</h2>
+                <p className="mb-0 small opacity-75">{sampleExpenses.length} expenses recorded</p>
+              </div>
             </div>
           </div>
         </div>
