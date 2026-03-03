@@ -114,3 +114,48 @@ class CategorySummaryView(APIView):
         ).order_by('-total')
 
         return Response(list(summary))
+
+
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+try:
+    from nlp_processor import parse_expense_text
+except ImportError:
+    # Fallback if module path issues
+    def parse_expense_text(text):
+        return {"error": "NLP Processor not found."}
+
+# 5️⃣ AI Process Expense View
+class AIProcessExpenseView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        text = request.data.get('text')
+        if not text:
+            return Response({"error": "No text provided."}, status=400)
+            
+        parsed_data = parse_expense_text(text)
+        
+        if "error" in parsed_data:
+            return Response(parsed_data, status=400)
+            
+        # Create Expense
+        try:
+            expense_title = parsed_data.get('description', 'AI Expense')
+            # If the description is long, we split it into title and description
+            expense = Expense.objects.create(
+                user=request.user,
+                title=expense_title[:255], 
+                amount=parsed_data.get('amount', 0.0),
+                category=parsed_data.get('category', 'Other'),
+                description=expense_title if len(expense_title) > 255 else ''
+            )
+        except Exception as e:
+            return Response({"error": str(e)}, status=400)
+            
+        return Response({
+            "message": "Expense successfully parsed and saved.",
+            "data": ExpenseSerializer(expense).data
+        }, status=201)

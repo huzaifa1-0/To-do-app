@@ -31,23 +31,23 @@ function Dashboard() {
     localStorage.removeItem('user')
     navigate('/login')
   }
-  
+
   // Helper function to make authenticated API calls
   const fetchWithAuth = async (url, options = {}) => {
     const accessToken = localStorage.getItem('access_token')
-    
+
     const authHeaders = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${accessToken}`,
       ...options.headers
     }
-    
+
     try {
       const response = await fetch(url, {
         ...options,
         headers: authHeaders
       })
-      
+
       if (response.status === 401) {
         // Token expired or invalid
         localStorage.removeItem('access_token')
@@ -55,14 +55,14 @@ function Dashboard() {
         navigate('/login')
         throw new Error('Unauthorized')
       }
-      
+
       return response
     } catch (error) {
       console.error('API request error:', error)
       throw error
     }
   }
-  
+
   // API data states
   const [totalExpenses, setTotalExpenses] = useState(0)
   const [allExpenses, setAllExpenses] = useState([])
@@ -74,21 +74,21 @@ function Dashboard() {
     const fetchData = async () => {
       try {
         setLoading(true)
-        
+
         // Get access token from localStorage
         const accessToken = localStorage.getItem('access_token')
-        
+
         // Headers with JWT authentication
         const authHeaders = {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`
         }
-        
+
         // Fetch total expenses
         const totalRes = await fetch(`${API_BASE_URL}total/`, {
           headers: authHeaders
         })
-        
+
         if (totalRes.status === 401) {
           // Token expired or invalid
           localStorage.removeItem('access_token')
@@ -96,17 +96,17 @@ function Dashboard() {
           navigate('/login')
           return
         }
-        
+
         const totalData = await totalRes.json()
         setTotalExpenses(totalData.total_spending || 0)
-        
+
         // Fetch all expenses
         const expensesRes = await fetch(`${API_BASE_URL}`, {
           headers: authHeaders
         })
         const expensesData = await expensesRes.json()
         setAllExpenses(expensesData)
-        
+
         // Fetch category summary
         const summaryRes = await fetch(`${API_BASE_URL}summary/`, {
           headers: authHeaders
@@ -114,14 +114,14 @@ function Dashboard() {
         const summaryData = await summaryRes.json()
         console.log('Category Summary:', summaryData)
         setCategorySummary(summaryData)
-        
+
         setLoading(false)
       } catch (error) {
         console.error('Error fetching data:', error)
         setLoading(false)
       }
     }
-    
+
     fetchData()
   }, [])
 
@@ -143,10 +143,12 @@ function Dashboard() {
     setAiMessage('🤖 Processing with AI...')
 
     try {
+      const accessToken = localStorage.getItem('access_token')
       const res = await fetch(`${API_BASE_URL}ai-process/`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({
           text: searchInput
@@ -156,20 +158,41 @@ function Dashboard() {
       const data = await res.json()
 
       if (res.ok) {
-        // Store token in localStorage
-        localStorage.setItem('token', data.token)
-        localStorage.setItem('user', JSON.stringify(data.user))
-        
-        // Redirect to dashboard
-        navigate('/')
+        setAiMessage('✅ Expense Added!')
+        setSearchInput('') // clear input
+
+        // Update local state to reflect new expense instantly
+        if (data.data) {
+          const newExpense = data.data
+          setAllExpenses(prev => [newExpense, ...prev])
+          setTodayExpenses(prev => [newExpense, ...prev.slice(0, 4)]) // Keep max 5
+          setTotalExpenses(prev => prev + parseFloat(newExpense.amount))
+
+          // Optionally update categories
+          setCategorySummary(prev => {
+            const catIndex = prev.findIndex(c => c.category === newExpense.category)
+            if (catIndex >= 0) {
+              const newSummary = [...prev]
+              newSummary[catIndex].total += parseFloat(newExpense.amount)
+              newSummary[catIndex].count += 1
+              return newSummary.sort((a, b) => b.total - a.total)
+            } else {
+              const newCat = { category: newExpense.category, total: parseFloat(newExpense.amount), count: 1 }
+              return [...prev, newCat].sort((a, b) => b.total - a.total)
+            }
+          })
+        }
+
+        // Clear success message after 3 seconds
+        setTimeout(() => setAiMessage(''), 3000)
       } else {
-        setError(data.error || 'Login failed. Please check your credentials.')
+        setAiMessage(`⚠️ ${data.error || 'Failed to process AI expense.'}`)
       }
     } catch (err) {
-      console.error('Login error:', err)
-      setError('Error connecting to server. Please ensure the backend is running.')
+      console.error('AI Processing error:', err)
+      setAiMessage('⚠️ Error connecting to server.')
     } finally {
-      setLoading(false)
+      setProcessingAI(false)
     }
   }
 
@@ -183,13 +206,13 @@ function Dashboard() {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${accessToken}`
           }
-          
+
           // First try to get today's expenses
           const res = await fetch(`${API_BASE_URL}?filter=today`, {
             headers: authHeaders
           })
           const data = await res.json()
-          
+
           if (data.length > 0) {
             // Show today's expenses if available
             setTodayExpenses(data.slice(0, 5))
@@ -254,18 +277,18 @@ function Dashboard() {
         <div className="container">
           <div className="d-flex justify-content-between align-items-center">
             <div className="d-flex align-items-center gap-2">
-              <div className="bg-white text-dark rounded-circle d-flex justify-content-center align-items-center fw-bold" 
-                   style={{ width: '40px', height: '40px', fontSize: '18px' }}>
+              <div className="bg-white text-dark rounded-circle d-flex justify-content-center align-items-center fw-bold"
+                style={{ width: '40px', height: '40px', fontSize: '18px' }}>
                 TM
               </div>
               <h1 className="mb-0">The Manager</h1>
             </div>
-            
+
             {currentUser && (
               <div className="d-flex align-items-center gap-3">
                 <div className="d-flex align-items-center gap-2">
-                  <div className="bg-light text-dark rounded-circle d-flex justify-content-center align-items-center" 
-                       style={{ width: '35px', height: '35px' }}>
+                  <div className="bg-light text-dark rounded-circle d-flex justify-content-center align-items-center"
+                    style={{ width: '35px', height: '35px' }}>
                     <User size={18} />
                   </div>
                   <span className="text-white small">
@@ -324,7 +347,7 @@ function Dashboard() {
                     onChange={(e) => setSearchInput(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleAIExpenseSubmit()}
                     disabled={processingAI}
-                    style={{ 
+                    style={{
                       borderRadius: '50px',
                       paddingLeft: '25px',
                       paddingRight: '120px',
@@ -337,7 +360,7 @@ function Dashboard() {
                     className="btn btn-light position-absolute top-50 end-0 translate-middle-y me-2"
                     onClick={handleAIExpenseSubmit}
                     disabled={processingAI}
-                    style={{ 
+                    style={{
                       borderRadius: '50px',
                       padding: '8px 20px',
                       fontWeight: '600',
@@ -376,8 +399,8 @@ function Dashboard() {
             {viewMode === 'recent'
               ? 'Recent Expenses'
               : viewMode === 'categories'
-              ? 'Select a Category'
-              : `${selectedCategory} Expenses`}
+                ? 'Select a Category'
+                : `${selectedCategory} Expenses`}
           </h4>
 
           {viewMode === 'recent' && (
@@ -418,8 +441,8 @@ function Dashboard() {
             ) : (
               categoriesWithTotals.map(category => (
                 <div key={category.name} className="col-6 col-md-6">
-                  <div 
-                    className="card h-100 shadow-sm" 
+                  <div
+                    className="card h-100 shadow-sm"
                     style={{ cursor: 'pointer' }}
                     onClick={() => {
                       setSelectedCategory(category.name)
@@ -462,7 +485,7 @@ function Dashboard() {
                       </div>
                       <div className="mt-3 text-muted small d-flex align-items-center gap-2">
                         <Calendar size={14} />
-                        {new Date(expense.date_field).toLocaleString('en-US', {
+                        {new Date(expense.created_at).toLocaleString('en-US', {
                           year: 'numeric',
                           month: 'long',
                           day: 'numeric',

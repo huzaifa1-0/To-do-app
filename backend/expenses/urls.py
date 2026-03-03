@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
-from .views import ExpenseViewSet, TodayExpenseTotalView, TotalSpendingView, CategorySummaryView
+from .views import ExpenseViewSet, TodayExpenseTotalView, TotalSpendingView, CategorySummaryView, AIProcessExpenseView
 
 router = DefaultRouter()
 router.register(r'', ExpenseViewSet, basename='expense')
@@ -15,6 +15,9 @@ urlpatterns = [
     
     # Category Summary
     path('summary/', CategorySummaryView.as_view(), name='category-summary'),
+    
+    # AI NLP Processor
+    path('ai-process/', AIProcessExpenseView.as_view(), name='ai-process'),
     
     # DRF Router endpoints (CRUD) -> /api/expenses/ and /api/expenses/<id>/
     path('', include(router.urls)),
