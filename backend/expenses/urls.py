@@ -1,9 +1,15 @@
-from django.urls import path
-from . import views
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+
+from .views import ExpenseViewSet, TodayExpenseTotalView
+
+router = DefaultRouter()
+router.register(r'', ExpenseViewSet, basename='expense')
 
 urlpatterns = [
-    path('', views.expense_list_create, name='expense-list-create'),
-    path('summary/', views.expense_summary, name='expense-summary'),
-    path('total/', views.expense_total, name='expense-total'),
-    path('ai-process/', views.process_ai_expense, name='process-ai-expense'),
+    # Today Total Expense
+    path('today-total/', TodayExpenseTotalView.as_view(), name='today-total'),
+    
+    # DRF Router endpoints (CRUD) -> /api/expenses/ and /api/expenses/<id>/
+    path('', include(router.urls)),
 ]
