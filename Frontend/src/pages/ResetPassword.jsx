@@ -9,20 +9,33 @@ function ResetPassword() {
   const [success, setSuccess] = useState(false)
   const navigate = useNavigate()
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
 
-    // Mock password reset - just simulate success
-    setTimeout(() => {
+    try {
+      const response = await fetch('http://localhost:8000/api/password-reset/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email })
+      })
+
+      if (response.ok) {
+        setSuccess(true)
+        setTimeout(() => {
+          navigate('/verify-code', { state: { email } })
+        }, 1500)
+      } else {
+        alert('Failed to send reset link. Please check your email.')
+      }
+    } catch (err) {
+      console.error(err)
+      alert('Network error. Is the server running?')
+    } finally {
       setLoading(false)
-      setSuccess(true)
-      
-      // Navigate to verify code page with email
-      setTimeout(() => {
-        navigate('/verify-code', { state: { email } })
-      }, 1000)
-    }, 1000)
+    }
   }
 
   return (

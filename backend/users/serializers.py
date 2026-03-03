@@ -31,20 +31,60 @@ class RegisterSerializer(serializers.ModelSerializer):
 class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
+class PasswordResetVerifySerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6)
+
+    def validate(self, attrs):
+        from .models import PasswordResetOTP
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        email = attrs['email']
+        otp_code = attrs['otp']
+        
+        try:
+            user = User.objects.get(email=email)
+            otp_record = PasswordResetOTP.objects.get(user=user)
+        except (User.DoesNotExist, PasswordResetOTP.DoesNotExist):
+            raise serializers.ValidationError({"otp": "Invalid or expired OTP."})
+            
+        if otp_record.otp != otp_code:
+            raise serializers.ValidationError({"otp": "Invalid or expired OTP."})
+            
+        if timezone.now() > otp_record.created_at + timedelta(minutes=15):
+            otp_record.delete()
+            raise serializers.ValidationError({"otp": "OTP has expired."})
+            
+        attrs['user'] = user
+        return attrs
+
 class PasswordResetConfirmSerializer(serializers.Serializer):
-    uid = serializers.CharField()
-    token = serializers.CharField()
+    email = serializers.EmailField()
+    otp = serializers.CharField(max_length=6)
     new_password = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
+        from .models import PasswordResetOTP
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        email = attrs['email']
+        otp_code = attrs['otp']
+        
         try:
-            uid = urlsafe_base64_decode(attrs['uid']).decode()
-            user = User.objects.get(pk=uid)
-        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
-            raise serializers.ValidationError({"uid": "Invalid or expired reset link."})
-        
-        if not default_token_generator.check_token(user, attrs['token']):
-            raise serializers.ValidationError({"token": "Invalid or expired reset token."})
-        
+            user = User.objects.get(email=email)
+            otp_record = PasswordResetOTP.objects.get(user=user)
+        except (User.DoesNotExist, PasswordResetOTP.DoesNotExist):
+            raise serializers.ValidationError({"otp": "Invalid or expired OTP."})
+            
+        if otp_record.otp != otp_code:
+            raise serializers.ValidationError({"otp": "Invalid or expired OTP."})
+            
+        if timezone.now() > otp_record.created_at + timedelta(minutes=15):
+            otp_record.delete()
+            raise serializers.ValidationError({"otp": "OTP has expired."})
+            
         validate_password(attrs['new_password'], user)
+        attrs['user'] = user
         return attrs
