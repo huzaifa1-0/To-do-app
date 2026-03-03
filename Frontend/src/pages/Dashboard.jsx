@@ -26,9 +26,41 @@ function Dashboard() {
   }, [])
 
   const handleLogout = () => {
-    localStorage.removeItem('token')
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
     localStorage.removeItem('user')
     navigate('/login')
+  }
+  
+  // Helper function to make authenticated API calls
+  const fetchWithAuth = async (url, options = {}) => {
+    const accessToken = localStorage.getItem('access_token')
+    
+    const authHeaders = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+      ...options.headers
+    }
+    
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers: authHeaders
+      })
+      
+      if (response.status === 401) {
+        // Token expired or invalid
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+        navigate('/login')
+        throw new Error('Unauthorized')
+      }
+      
+      return response
+    } catch (error) {
+      console.error('API request error:', error)
+      throw error
+    }
   }
   
   // API data states
@@ -43,18 +75,42 @@ function Dashboard() {
       try {
         setLoading(true)
         
+        // Get access token from localStorage
+        const accessToken = localStorage.getItem('access_token')
+        
+        // Headers with JWT authentication
+        const authHeaders = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        }
+        
         // Fetch total expenses
-        const totalRes = await fetch(`${API_BASE_URL}total/`)
+        const totalRes = await fetch(`${API_BASE_URL}total/`, {
+          headers: authHeaders
+        })
+        
+        if (totalRes.status === 401) {
+          // Token expired or invalid
+          localStorage.removeItem('access_token')
+          localStorage.removeItem('refresh_token')
+          navigate('/login')
+          return
+        }
+        
         const totalData = await totalRes.json()
         setTotalExpenses(totalData.total_spending || 0)
         
         // Fetch all expenses
-        const expensesRes = await fetch(`${API_BASE_URL}`)
+        const expensesRes = await fetch(`${API_BASE_URL}`, {
+          headers: authHeaders
+        })
         const expensesData = await expensesRes.json()
         setAllExpenses(expensesData)
         
         // Fetch category summary
-        const summaryRes = await fetch(`${API_BASE_URL}summary/`)
+        const summaryRes = await fetch(`${API_BASE_URL}summary/`, {
+          headers: authHeaders
+        })
         const summaryData = await summaryRes.json()
         console.log('Category Summary:', summaryData)
         setCategorySummary(summaryData)
@@ -122,8 +178,16 @@ function Dashboard() {
     if (viewMode === 'recent') {
       const fetchTodayExpenses = async () => {
         try {
+          const accessToken = localStorage.getItem('access_token')
+          const authHeaders = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`
+          }
+          
           // First try to get today's expenses
-          const res = await fetch(`${API_BASE_URL}?filter=today`)
+          const res = await fetch(`${API_BASE_URL}?filter=today`, {
+            headers: authHeaders
+          })
           const data = await res.json()
           
           if (data.length > 0) {
@@ -131,7 +195,9 @@ function Dashboard() {
             setTodayExpenses(data.slice(0, 5))
           } else {
             // Fallback: Get the 5 most recent expenses from all time
-            const allRes = await fetch(`${API_BASE_URL}`)
+            const allRes = await fetch(`${API_BASE_URL}`, {
+              headers: authHeaders
+            })
             const allData = await allRes.json()
             setTodayExpenses(allData.slice(0, 5))
           }
@@ -149,7 +215,14 @@ function Dashboard() {
       const fetchCategoryExpenses = async () => {
         try {
           setLoadingExpenses(true)
-          const res = await fetch(`${API_BASE_URL}?category=${selectedCategory}`)
+          const accessToken = localStorage.getItem('access_token')
+          const authHeaders = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`
+          }
+          const res = await fetch(`${API_BASE_URL}?category=${selectedCategory}`, {
+            headers: authHeaders
+          })
           const data = await res.json()
           setCategoryExpenses(data)
           setLoadingExpenses(false)

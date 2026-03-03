@@ -7,26 +7,53 @@ function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const navigate = useNavigate()
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
+    setError('')
 
-    // Create a mock user with random input
-    const mockUser = {
-      email: email,
-      first_name: email.split('@')[0] || 'User'
+    try {
+      const response = await fetch('http://localhost:8000/api/login/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email,
+          password: password
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        // Store tokens
+        localStorage.setItem('access_token', data.access)
+        localStorage.setItem('refresh_token', data.refresh)
+        localStorage.setItem('user', JSON.stringify({
+          email: email,
+          first_name: email.split('@')[0] || 'User'
+        }))
+        
+        // Redirect to dashboard
+        navigate('/')
+      } else {
+        // Handle login errors
+        if (data.detail) {
+          setError(data.detail)
+        } else {
+          setError('Invalid email or password.')
+        }
+      }
+    } catch (err) {
+      console.error('Error:', err)
+      setError('Network error. Please make sure the backend is running.')
+    } finally {
+      setLoading(false)
     }
-
-    // Store user info in localStorage
-    localStorage.setItem('token', 'mock-token-' + Date.now())
-    localStorage.setItem('user', JSON.stringify(mockUser))
-    
-    // Redirect to dashboard
-    setTimeout(() => {
-      navigate('/')
-    }, 500) // Small delay for better UX
   }
 
   return (
@@ -45,6 +72,12 @@ function Login() {
                   <h2 className="fw-bold mb-1">The Manager</h2>
                   <p className="text-muted mb-3">Welcome Back!</p>
                 </div>
+
+                {error && (
+                  <div className="alert alert-danger" role="alert">
+                    {error}
+                  </div>
+                )}
 
 
 

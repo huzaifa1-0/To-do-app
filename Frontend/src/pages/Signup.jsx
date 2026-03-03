@@ -12,6 +12,7 @@ function Signup() {
     lastName: ''
   })
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const navigate = useNavigate()
 
   const handleChange = (e) => {
@@ -21,25 +22,73 @@ function Signup() {
     })
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
+    setError('')
 
-    // Create a mock user with form data
-    const mockUser = {
-      email: formData.email,
-      first_name: formData.firstName || formData.email.split('@')[0],
-      last_name: formData.lastName
+    try {
+      const response = await fetch('http://localhost:8000/api/register/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          email: formData.email,
+          password: formData.password,
+          confirm_password: formData.confirmPassword
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        // Registration successful - auto login
+        const loginResponse = await fetch('http://localhost:8000/api/login/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            password: formData.password
+          })
+        })
+
+        if (loginResponse.ok) {
+          const loginData = await loginResponse.json()
+          localStorage.setItem('access_token', loginData.access)
+          localStorage.setItem('refresh_token', loginData.refresh)
+          localStorage.setItem('user', JSON.stringify({
+            email: formData.email,
+            first_name: formData.firstName || formData.email.split('@')[0],
+            last_name: formData.lastName
+          }))
+          navigate('/')
+        } else {
+          // If auto login fails, redirect to login page
+          navigate('/login')
+        }
+      } else {
+        // Handle validation errors
+        if (data.password) {
+          setError(data.password.join(', '))
+        } else if (data.email) {
+          setError(data.email.join(', '))
+        } else if (data.non_field_errors) {
+          setError(data.non_field_errors.join(', '))
+        } else {
+          setError('Registration failed. Please try again.')
+        }
+      }
+    } catch (err) {
+      console.error('Error:', err)
+      setError('Network error. Please make sure the backend is running.')
+    } finally {
+      setLoading(false)
     }
-
-    // Store user info in localStorage
-    localStorage.setItem('token', 'mock-token-' + Date.now())
-    localStorage.setItem('user', JSON.stringify(mockUser))
-    
-    // Redirect to dashboard
-    setTimeout(() => {
-      navigate('/')
-    }, 500) // Small delay for better UX
   }
 
   return (
@@ -58,6 +107,12 @@ function Signup() {
                   <h2 className="fw-bold mb-1">The Manager</h2>
                   <p className="text-muted mb-3">Create Account</p>
                 </div>
+
+                {error && (
+                  <div className="alert alert-danger" role="alert">
+                    {error}
+                  </div>
+                )}
 
 
 

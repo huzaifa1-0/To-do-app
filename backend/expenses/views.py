@@ -2,7 +2,7 @@ from rest_framework import viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Sum
+from django.db.models import Sum, Count
 from django.utils import timezone
 from datetime import timedelta, datetime
 import pytz
@@ -82,3 +82,35 @@ class TodayExpenseTotalView(APIView):
             "today_total": total_amount,
             "currency": "PKR"
         })
+
+
+# 3️⃣ Total All-Time Spending View
+class TotalSpendingView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        result = Expense.objects.filter(
+            user=request.user
+        ).aggregate(total=Sum('amount'))
+
+        total_amount = result['total'] or 0.0
+
+        return Response({
+            "total_spending": total_amount,
+            "currency": "PKR"
+        })
+
+
+# 4️⃣ Category Summary View
+class CategorySummaryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        summary = Expense.objects.filter(
+            user=request.user
+        ).values('category').annotate(
+            total=Sum('amount'),
+            count=Count('id')
+        ).order_by('-total')
+
+        return Response(list(summary))
