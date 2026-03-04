@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { UserPlus, User } from 'lucide-react'
+import { UserPlus, User, Eye, EyeOff, Wand2 } from 'lucide-react'
 import 'bootstrap/dist/css/bootstrap.min.css'
+import { API_BASE_URL } from '../api/config'
 
 function Signup() {
   const [formData, setFormData] = useState({
@@ -13,7 +14,24 @@ function Signup() {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const navigate = useNavigate()
+
+  const suggestPassword = () => {
+    const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+"
+    let generated = ""
+    for (let i = 0; i < 14; i++) {
+      generated += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    setFormData(prev => ({
+      ...prev,
+      password: generated,
+      confirmPassword: generated
+    }))
+    setShowPassword(true)
+    setShowConfirmPassword(true)
+  }
 
   const handleChange = (e) => {
     setFormData({
@@ -28,7 +46,7 @@ function Signup() {
     setError('')
 
     try {
-      const response = await fetch('http://localhost:8000/api/register/', {
+      const response = await fetch(`${API_BASE_URL}/register/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -46,7 +64,7 @@ function Signup() {
 
       if (response.ok) {
         // Registration successful - auto login
-        const loginResponse = await fetch('http://localhost:8000/api/login/', {
+        const loginResponse = await fetch(`${API_BASE_URL}/login/`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -100,8 +118,8 @@ function Signup() {
             <div className="card shadow">
               <div className="card-body p-5">
                 <div className="text-center mb-4">
-                  <div className="bg-white text-dark rounded-circle d-flex justify-content-center align-items-center fw-bold mx-auto mb-3 border border-2 border-dark" 
-                       style={{ width: '70px', height: '70px', fontSize: '28px' }}>
+                  <div className="bg-white text-dark rounded-circle d-flex justify-content-center align-items-center fw-bold mx-auto mb-3 border border-2 border-dark"
+                    style={{ width: '70px', height: '70px', fontSize: '28px' }}>
                     TM
                   </div>
                   <h2 className="fw-bold mb-1">The Manager</h2>
@@ -161,31 +179,66 @@ function Signup() {
                   </div>
 
                   <div className="mb-3">
-                    <label htmlFor="password" className="form-label">Password</label>
-                    <input
-                      type="password"
-                      className="form-control"
-                      id="password"
-                      name="password"
-                      value={formData.password}
-                      onChange={handleChange}
-                      placeholder="Create a password"
-                      required
-                    />
+                    <div className="d-flex justify-content-between align-items-center mb-1">
+                      <label htmlFor="password" className="form-label mb-0">Password</label>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-link text-decoration-none d-flex align-items-center gap-1 p-0 fw-bold"
+                        onClick={suggestPassword}
+                      >
+                        <Wand2 size={14} /> Suggest Strong Password
+                      </button>
+                    </div>
+                    <div className="input-group shadow-sm">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        className="form-control"
+                        id="password"
+                        name="password"
+                        value={formData.password}
+                        onChange={handleChange}
+                        placeholder="Create a password"
+                        required
+                      />
+                      <button
+                        className="btn btn-outline-secondary bg-white border"
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOff size={18} className="text-muted" /> : <Eye size={18} className="text-muted" />}
+                      </button>
+                    </div>
+                    <div className="form-text mt-2 text-muted small pb-1">
+                      <strong className="d-block mb-1">Password must contain:</strong>
+                      <ul className="mb-0 ps-3" style={{ listStyleType: "circle" }}>
+                        <li>At least 8 characters long</li>
+                        <li>One uppercase and one lowercase letter</li>
+                        <li>One number and one special character (!@#$%^&*)</li>
+                      </ul>
+                    </div>
                   </div>
 
                   <div className="mb-4">
                     <label htmlFor="confirmPassword" className="form-label">Confirm Password</label>
-                    <input
-                      type="password"
-                      className="form-control"
-                      id="confirmPassword"
-                      name="confirmPassword"
-                      value={formData.confirmPassword}
-                      onChange={handleChange}
-                      placeholder="Re-enter your password"
-                      required
-                    />
+                    <div className="input-group shadow-sm">
+                      <input
+                        type={showConfirmPassword ? "text" : "password"}
+                        className="form-control"
+                        id="confirmPassword"
+                        name="confirmPassword"
+                        value={formData.confirmPassword}
+                        onChange={handleChange}
+                        placeholder="Re-enter your password"
+                        required
+                      />
+                      <button
+                        className="btn btn-outline-secondary bg-white border"
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      >
+                        {showConfirmPassword ? <EyeOff size={18} className="text-muted" /> : <Eye size={18} className="text-muted" />}
+                      </button>
+                    </div>
                   </div>
 
                   <button

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { CheckCircle } from 'lucide-react'
+import { CheckCircle, Eye, EyeOff } from 'lucide-react'
 import 'bootstrap/dist/css/bootstrap.min.css'
+import { API_BASE_URL } from '../api/config'
 
 function VerifyCode() {
   const [code, setCode] = useState('')
@@ -9,6 +10,9 @@ function VerifyCode() {
   const [error, setError] = useState('')
   const [isOtpVerified, setIsOtpVerified] = useState(false)
   const [newPassword, setNewPassword] = useState('')
+  const [confirmNewPassword, setConfirmNewPassword] = useState('')
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmNewPassword, setShowConfirmNewPassword] = useState(false)
 
   const navigate = useNavigate()
   const location = useLocation()
@@ -22,7 +26,7 @@ function VerifyCode() {
     setError('')
 
     try {
-      const response = await fetch('http://localhost:8000/api/password-reset/verify/', {
+      const response = await fetch(`${API_BASE_URL}/password-reset/verify/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -53,8 +57,14 @@ function VerifyCode() {
     setLoading(true)
     setError('')
 
+    if (newPassword !== confirmNewPassword) {
+      setError('Passwords do not match.')
+      setLoading(false)
+      return
+    }
+
     try {
-      const response = await fetch('http://localhost:8000/api/password-reset/confirm/', {
+      const response = await fetch(`${API_BASE_URL}/password-reset/confirm/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -112,19 +122,58 @@ function VerifyCode() {
                       <div>OTP Verified! Enter your new password.</div>
                     </div>
 
-                    <div className="mb-4">
+                    <div className="mb-3">
                       <label htmlFor="newPassword" className="form-label">New Password</label>
-                      <input
-                        type="password"
-                        className="form-control"
-                        id="newPassword"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="Enter your new password"
-                        required
-                      />
+                      <div className="input-group shadow-sm">
+                        <input
+                          type={showNewPassword ? "text" : "password"}
+                          className="form-control"
+                          id="newPassword"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="Enter your new password"
+                          required
+                        />
+                        <button
+                          className="btn btn-outline-secondary bg-white border"
+                          type="button"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                        >
+                          {showNewPassword ? <EyeOff size={18} className="text-muted" /> : <Eye size={18} className="text-muted" />}
+                        </button>
+                      </div>
+                      <div className="form-text mt-2 text-muted small pb-1">
+                        <strong className="d-block mb-1">Password must contain:</strong>
+                        <ul className="mb-0 ps-3" style={{ listStyleType: "circle" }}>
+                          <li>At least 8 characters long</li>
+                          <li>One uppercase and one lowercase letter</li>
+                          <li>One number and one special character (!@#$%^&*)</li>
+                        </ul>
+                      </div>
+                    </div>
+
+                    <div className="mb-4">
+                      <label htmlFor="confirmNewPassword" className="form-label">Confirm New Password</label>
+                      <div className="input-group shadow-sm">
+                        <input
+                          type={showConfirmNewPassword ? "text" : "password"}
+                          className="form-control"
+                          id="confirmNewPassword"
+                          value={confirmNewPassword}
+                          onChange={(e) => setConfirmNewPassword(e.target.value)}
+                          placeholder="Re-enter your new password"
+                          required
+                        />
+                        <button
+                          className="btn btn-outline-secondary bg-white border"
+                          type="button"
+                          onClick={() => setShowConfirmNewPassword(!showConfirmNewPassword)}
+                        >
+                          {showConfirmNewPassword ? <EyeOff size={18} className="text-muted" /> : <Eye size={18} className="text-muted" />}
+                        </button>
+                      </div>
                       {error && (
-                        <div className="text-danger small mt-1">
+                        <div className="text-danger small mt-2 fw-bold">
                           {error}
                         </div>
                       )}

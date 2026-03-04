@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { TrendingUp, Calendar, DollarSign, LogOut, User } from 'lucide-react'
 import 'bootstrap/dist/css/bootstrap.min.css'
+import { API_BASE_URL as BASE_URL } from '../api/config'
 
-const API_BASE_URL = 'http://localhost:8000/api/expenses/'
+const API_BASE_URL = `${BASE_URL}/expenses/`
 
 const categories = ['All', 'Office', 'Meals', 'Technology', 'Transport', 'Travel', 'Events']
 
@@ -84,8 +85,8 @@ function Dashboard() {
           'Authorization': `Bearer ${accessToken}`
         }
 
-        // Fetch total expenses
-        const totalRes = await fetch(`${API_BASE_URL}total/`, {
+        // Fetch today's expenses total
+        const totalRes = await fetch(`${API_BASE_URL}today-total/`, {
           headers: authHeaders
         })
 
@@ -98,7 +99,7 @@ function Dashboard() {
         }
 
         const totalData = await totalRes.json()
-        setTotalExpenses(totalData.total_spending || 0)
+        setTotalExpenses(totalData.today_total || 0)
 
         // Fetch all expenses
         const expensesRes = await fetch(`${API_BASE_URL}`, {
@@ -385,9 +386,9 @@ function Dashboard() {
                 <TrendingUp size={40} className="text-success" />
               </div>
               <div>
-                <h4 className="mb-1 opacity-75">Total Expenses</h4>
+                <h4 className="mb-1 opacity-75">Today's Expenses</h4>
                 <h2 className="fw-bold mb-1">Rs. {totalExpenses.toLocaleString('en-PK', { minimumFractionDigits: 2 })}</h2>
-                <p className="mb-0 small opacity-75">{allExpenses.length} expenses recorded</p>
+                <p className="mb-0 small opacity-75">{allExpenses.length} all-time expenses recorded</p>
               </div>
             </div>
           </div>

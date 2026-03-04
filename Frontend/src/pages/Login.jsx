@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { LogIn, User } from 'lucide-react'
 import 'bootstrap/dist/css/bootstrap.min.css'
+import { API_BASE_URL } from '../api/config'
 
 function Login() {
   const [email, setEmail] = useState('')
@@ -16,7 +17,7 @@ function Login() {
     setError('')
 
     try {
-      const response = await fetch('http://localhost:8000/api/login/', {
+      const response = await fetch(`${API_BASE_URL}/login/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -37,7 +38,7 @@ function Login() {
           email: email,
           first_name: email.split('@')[0] || 'User'
         }))
-        
+
         // Redirect to dashboard
         navigate('/')
       } else {
@@ -65,8 +66,8 @@ function Login() {
             <div className="card shadow">
               <div className="card-body p-5">
                 <div className="text-center mb-4">
-                  <div className="bg-white text-dark rounded-circle d-flex justify-content-center align-items-center fw-bold mx-auto mb-3 border border-2 border-dark" 
-                       style={{ width: '70px', height: '70px', fontSize: '28px' }}>
+                  <div className="bg-white text-dark rounded-circle d-flex justify-content-center align-items-center fw-bold mx-auto mb-3 border border-2 border-dark"
+                    style={{ width: '70px', height: '70px', fontSize: '28px' }}>
                     TM
                   </div>
                   <h2 className="fw-bold mb-1">The Manager</h2>
