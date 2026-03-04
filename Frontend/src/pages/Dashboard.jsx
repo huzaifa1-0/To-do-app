@@ -6,7 +6,7 @@ import { API_BASE_URL as BASE_URL } from '../api/config'
 
 const API_BASE_URL = `${BASE_URL}/expenses/`
 
-const categories = ['All', 'Office', 'Meals', 'Technology', 'Transport', 'Travel', 'Events']
+const categories = ['All', 'Food', 'Travel', 'Transportation', 'Shopping', 'Entertainment', 'Healthcare', 'Utilities', 'Miscellaneous', 'Others']
 
 function Dashboard() {
   const [showAllExpenses, setShowAllExpenses] = useState(false)
@@ -68,6 +68,7 @@ function Dashboard() {
   const [totalExpenses, setTotalExpenses] = useState(0)
   const [allExpenses, setAllExpenses] = useState([])
   const [categorySummary, setCategorySummary] = useState([])
+  const [budgetStatus, setBudgetStatus] = useState([])
   const [loading, setLoading] = useState(true)
 
   // Fetch data from APIs
@@ -113,8 +114,24 @@ function Dashboard() {
           headers: authHeaders
         })
         const summaryData = await summaryRes.json()
-        console.log('Category Summary:', summaryData)
-        setCategorySummary(summaryData)
+        const parsedSummary = summaryData.map(item => ({
+          ...item,
+          total: parseFloat(item.total) || 0
+        }))
+        setCategorySummary(parsedSummary)
+
+        // Fetch budget status
+        const budgetRes = await fetch(`${API_BASE_URL}budget-status/`, {
+          headers: authHeaders
+        })
+        const budgetData = await budgetRes.json()
+        const parsedBudgets = budgetData.map(item => ({
+          ...item,
+          allocated: parseFloat(item.allocated) || 0,
+          spent: parseFloat(item.spent) || 0,
+          remaining: parseFloat(item.remaining) || 0
+        }))
+        setBudgetStatus(parsedBudgets)
 
         setLoading(false)
       } catch (error) {
@@ -171,16 +188,32 @@ function Dashboard() {
 
           // Optionally update categories
           setCategorySummary(prev => {
-            const catIndex = prev.findIndex(c => c.category === newExpense.category)
+            const catIndex = prev.findIndex(c => c.category === newExpense.category_name)
             if (catIndex >= 0) {
               const newSummary = [...prev]
               newSummary[catIndex].total += parseFloat(newExpense.amount)
               newSummary[catIndex].count += 1
               return newSummary.sort((a, b) => b.total - a.total)
             } else {
-              const newCat = { category: newExpense.category, total: parseFloat(newExpense.amount), count: 1 }
+              const newCat = { category: newExpense.category_name, total: parseFloat(newExpense.amount), count: 1 }
               return [...prev, newCat].sort((a, b) => b.total - a.total)
             }
+          })
+
+          // Update budget status locally to reflect the new expense
+          setBudgetStatus(prev => {
+            const amount = parseFloat(newExpense.amount)
+            return prev.map(item => {
+              if (item.category === newExpense.category_name || item.category === newExpense.category) {
+                const newSpent = item.spent + amount
+                return {
+                  ...item,
+                  spent: newSpent,
+                  remaining: item.allocated - newSpent
+                }
+              }
+              return item
+            })
           })
         }
 
@@ -264,7 +297,7 @@ function Dashboard() {
   // Get unique categories with their total amounts from API summary
   const categoriesWithTotals = categorySummary.map(item => ({
     name: item.category,
-    count: allExpenses.filter(e => e.category === item.category).length,
+    count: allExpenses.filter(e => e.category_name === item.category).length,
     total: item.total
   }))
 
@@ -414,6 +447,44 @@ function Dashboard() {
           )}
         </div>
 
+        {/* Budget Overview Section */}
+        {viewMode === 'recent' && budgetStatus.length > 0 && (
+          <div className="card shadow-sm mb-4 border-0">
+            <div className="card-header bg-white border-0 py-3">
+              <h5 className="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
+                <DollarSign size={18} className="text-primary" />
+                Budget Overview
+              </h5>
+            </div>
+            <div className="card-body p-0">
+              <div className="table-responsive">
+                <table className="table table-hover mb-0 align-middle">
+                  <thead className="table-light">
+                    <tr>
+                      <th className="ps-4">Category</th>
+                      <th className="text-center">Allocated</th>
+                      <th className="text-center">Spent</th>
+                      <th className="text-end pe-4">Remaining</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {budgetStatus.map((item, index) => (
+                      <tr key={index}>
+                        <td className="ps-4 fw-medium">{item.category}</td>
+                        <td className="text-center text-muted">Rs. {item.allocated.toLocaleString('en-PK')}</td>
+                        <td className="text-center text-danger">Rs. {item.spent.toLocaleString('en-PK')}</td>
+                        <td className="text-end pe-4 fw-bold text-success">
+                          Rs. {item.remaining.toLocaleString('en-PK')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
         {viewMode !== 'recent' && (
           <button
             className="btn btn-primary mb-3"
@@ -479,8 +550,8 @@ function Dashboard() {
                     <div className="card-body">
                       <div className="d-flex justify-content-between align-items-start">
                         <div>
-                          <h5 className="card-title">{expense.description}</h5>
-                          <span className="badge bg-secondary">{expense.category}</span>
+                          <h5 className="card-title">{expense.title}</h5>
+                          <span className="badge bg-secondary">{expense.category_name}</span>
                         </div>
                         <h5 className="text-primary fw-bold">Rs. {expense.amount.toLocaleString('en-PK', { minimumFractionDigits: 2 })}</h5>
                       </div>

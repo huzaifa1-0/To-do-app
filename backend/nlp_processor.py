@@ -9,11 +9,12 @@ load_dotenv()
 # Initialize the Groq client
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-def parse_expense_text(user_input: str) -> dict:
+def parse_expense_text(user_input: str, allowed_categories: list) -> dict:
     """
     Takes a raw string and extracts structured data for the PostgreSQL database using Groq.
     """
-    system_prompt = """
+    categories_str = ", ".join(allowed_categories)
+    system_prompt = f"""
     You are an intelligent financial assistant for a smart To-Do and Expense tracking app. 
     Extract the expense details from the user's text.
     
@@ -21,7 +22,7 @@ def parse_expense_text(user_input: str) -> dict:
     1. If no currency is explicitly mentioned, assume it is 'PKR'.
     2. Provide a concise, clear description of the expense.
     3. You MUST classify the expense into EXACTLY one of these categories: 
-       Food, Transport, Shopping, Bills, or Other.
+       {categories_str}.
     4. You MUST respond in pure JSON format with the following keys exactly:
        "amount" (number), "currency" (string), "description" (string), "category" (string).
     """

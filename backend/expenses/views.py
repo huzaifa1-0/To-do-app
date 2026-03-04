@@ -1,14 +1,41 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, F
 from django.utils import timezone
 from datetime import timedelta, datetime
 import pytz
 
-from .models import Expense
+from .models import Expense, Category, UserCategoryBudget
 from .serializers import ExpenseSerializer
+
+
+def check_budget(user, category, amount_to_add):
+    """
+    Utility function to check if an expense exceeds the remaining budget.
+    Returns (is_allowed, error_message)
+    """
+    if not category:
+        return True, ""
+        
+    budget = UserCategoryBudget.objects.filter(user=user, category=category).first()
+    if not budget:
+        # If no budget is set, we assume no limit for now, 
+        # or you could return False if you want to enforce that every category NEEDS a budget.
+        return True, ""
+        
+    total_spent = Expense.objects.filter(
+        user=user, 
+        category=category
+    ).aggregate(total=Sum('amount'))['total'] or 0
+    
+    remaining = budget.amount - total_spent
+    
+    if amount_to_add > remaining:
+        return False, "This expense cannot be added because the allocated budget for this category has been exceeded."
+    
+    return True, ""
 
 
 # 1️⃣ Expense Data Isolation ViewSet
@@ -22,7 +49,7 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         ).order_by('-created_at')
 
         filter_param = self.request.query_params.get('filter')
-        category = self.request.query_params.get('category')
+        category_name = self.request.query_params.get('category')
         start_date = self.request.query_params.get('start_date')
         end_date = self.request.query_params.get('end_date')
 
@@ -42,8 +69,8 @@ class ExpenseViewSet(viewsets.ModelViewSet):
                 created_at__month=today.month
             )
 
-        if category:
-            queryset = queryset.filter(category=category)
+        if category_name:
+            queryset = queryset.filter(category__name=category_name)
 
         if start_date and end_date:
             try:
@@ -56,6 +83,14 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         return queryset
 
     def perform_create(self, serializer):
+        category = serializer.validated_data.get('category')
+        amount = serializer.validated_data.get('amount')
+        
+        is_allowed, error_msg = check_budget(self.request.user, category, amount)
+        if not is_allowed:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError(error_msg)
+            
         serializer.save(user=self.request.user)
 
 
@@ -108,12 +143,37 @@ class CategorySummaryView(APIView):
     def get(self, request):
         summary = Expense.objects.filter(
             user=request.user
-        ).values('category').annotate(
+        ).values('category__name').annotate(
+            category=F('category__name'),
             total=Sum('amount'),
             count=Count('id')
         ).order_by('-total')
 
         return Response(list(summary))
+
+
+# 5️⃣ Budget Status View
+class BudgetStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        budgets = UserCategoryBudget.objects.filter(user=request.user).select_related('category')
+        
+        status_data = []
+        for budget in budgets:
+            spent = Expense.objects.filter(
+                user=request.user, 
+                category=budget.category
+            ).aggregate(total=Sum('amount'))['total'] or 0
+            
+            status_data.append({
+                "category": budget.category.name,
+                "allocated": budget.amount,
+                "spent": spent,
+                "remaining": budget.amount - spent
+            })
+            
+        return Response(status_data)
 
 
 import sys
@@ -127,7 +187,7 @@ except ImportError:
     def parse_expense_text(text):
         return {"error": "NLP Processor not found."}
 
-# 5️⃣ AI Process Expense View
+# 6️⃣ AI Process Expense View
 class AIProcessExpenseView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -135,11 +195,32 @@ class AIProcessExpenseView(APIView):
         text = request.data.get('text')
         if not text:
             return Response({"error": "No text provided."}, status=400)
-            
-        parsed_data = parse_expense_text(text)
+        # 1. Get user's allocated categories
+        user_budgets = UserCategoryBudget.objects.filter(user=request.user).select_related('category')
+        allowed_categories = [b.category.name for b in user_budgets]
+        
+        # Always include 'Others' as a fallback
+        if "Others" not in allowed_categories:
+            allowed_categories.append("Others")
+
+        # 2. Parse text with Groq AI using only allowed categories
+        parsed_data = parse_expense_text(text, allowed_categories)
         
         if "error" in parsed_data:
             return Response(parsed_data, status=400)
+            
+        # 3. Guard against AI hallucinations: Ensure category is allowed
+        cat_name = parsed_data.get('category')
+        if cat_name not in allowed_categories:
+            cat_name = "Others"
+            
+        category, _ = Category.objects.get_or_create(name=cat_name)
+        amount = parsed_data.get('amount', 0.0)
+        
+        # Budget Validation
+        is_allowed, error_msg = check_budget(request.user, category, amount)
+        if not is_allowed:
+            return Response({"error": error_msg}, status=400)
             
         # Create Expense
         try:
@@ -148,8 +229,8 @@ class AIProcessExpenseView(APIView):
             expense = Expense.objects.create(
                 user=request.user,
                 title=expense_title[:255], 
-                amount=parsed_data.get('amount', 0.0),
-                category=parsed_data.get('category', 'Other'),
+                amount=amount,
+                category=category,
                 description=expense_title if len(expense_title) > 255 else ''
             )
         except Exception as e:
