@@ -9,3 +9,4 @@ pydantic>=2.6.3
 psycopg-binary>=3.1.18
 python-dotenv>=1.0.1
 whitenoise>=6.6.0
+pytz>=2024.1

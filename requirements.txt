@@ -1,5 +1,6 @@
 Django>=4.2,<5.0
 djangorestframework>=3.14.0
+djangorestframework-simplejwt>=5.3.1
 django-cors-headers>=4.3.1
 dj-database-url>=2.1.0
 gunicorn>=21.2.0
@@ -8,3 +9,4 @@ pydantic>=2.6.3
 psycopg-binary>=3.1.18
 python-dotenv>=1.0.1
 whitenoise>=6.6.0
+pytz>=2024.1
