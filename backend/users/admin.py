@@ -19,17 +19,22 @@ class UserAdmin(BaseUserAdmin):
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
         ('Personal info', {'fields': ('first_name', 'last_name')}),
+        ('Money Management', {'fields': ('assigned_amount',)}),
         ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('Important dates', {'fields': ('last_login', 'date_joined')}),
     )
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
-            'fields': ('email', 'first_name', 'last_name', 'password', 'is_staff', 'is_active'),
+            'fields': ('email', 'first_name', 'last_name', 'password', 'assigned_amount', 'is_staff', 'is_active'),
         }),
     )
 
-    list_display = ('email', 'first_name', 'last_name', 'get_total_expenses', 'date_joined', 'is_staff')
+    list_display = (
+        'email', 'first_name', 'last_name', 
+        'assigned_amount', 'get_total_expenses', 'get_balance',
+        'date_joined', 'is_staff'
+    )
     list_filter = ('is_staff', 'is_superuser', 'is_active', 'date_joined')
     search_fields = ('email', 'first_name', 'last_name')
     ordering = ('email',)
@@ -48,3 +53,9 @@ class UserAdmin(BaseUserAdmin):
     
     get_total_expenses.short_description = 'Total Expenses'
     get_total_expenses.admin_order_field = '_total_expenses'
+
+    def get_balance(self, obj):
+        total_expenses = self.get_total_expenses(obj)
+        return (obj.assigned_amount or 0) - total_expenses
+    
+    get_balance.short_description = 'Current Balance'

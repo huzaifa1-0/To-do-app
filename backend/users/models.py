@@ -19,6 +19,7 @@ class CustomUserManager(BaseUserManager):
 class User(AbstractUser):
     username = None
     email = models.EmailField(unique=True)
+    assigned_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = [] # Username is removed, email is handled automatically
