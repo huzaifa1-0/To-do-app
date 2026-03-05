@@ -1,3 +1,4 @@
+import threading
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
 from django.core.mail import send_mail
@@ -5,10 +6,16 @@ from django.db.models import Sum
 from django.conf import settings
 from decimal import Decimal
 from .models import User
-
-# This import might cause circular issues if not careful, 
-# but it's usually safe in signals if done at the top
 from expenses.models import UserCategoryBudget
+
+def send_async_email(subject, message, recipient_list):
+    """Helper function to send email in a background thread."""
+    thread = threading.Thread(
+        target=send_mail,
+        args=(subject, message, settings.DEFAULT_FROM_EMAIL, recipient_list),
+        kwargs={'fail_silently': True}
+    )
+    thread.start()
 
 @receiver(pre_save, sender=User)
 def capture_old_assigned_amount(sender, instance, **kwargs):
@@ -41,7 +48,7 @@ Current Balance: Rs. {current_balance}
 Regards
 Daily Expense Tracker Team"""
 
-        send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [instance.email], fail_silently=False)
+        send_async_email(subject, message, [instance.email])
 
 @receiver(pre_save, sender=UserCategoryBudget)
 def capture_old_budget_amount(sender, instance, **kwargs):
@@ -73,4 +80,4 @@ Your category budget has been updated accordingly.
 Regards
 Daily Expense Tracker Team"""
 
-        send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email], fail_silently=False)
+        send_async_email(subject, message, [user.email])
