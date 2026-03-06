@@ -71,6 +71,12 @@ def notify_user_on_expense_assignment(sender, instance, created, **kwargs):
     
     if created:
         user = instance.user
+        
+        # Only send this email if the user is an employee (has an employer).
+        # Independent users track their own expenses and do not need admin notifications.
+        if not user.employer:
+            return
+            
         category_name = instance.category.name if instance.category else "Uncategorized"
         
         subject = f"Expense Recorded: {instance.title}"
