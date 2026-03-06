@@ -516,12 +516,14 @@ function Dashboard() {
       if (res.ok) {
         const data = await res.json()
         setIncomes(prev => prev.map(inc => inc.id === id ? { ...inc, status: 'Received' } : inc))
-        setTotalBalance(data.new_balance)
+        setTotalBalance(parseFloat(data.new_balance) || 0)
       } else {
-        alert('Failed to mark income as received.')
+        const errData = await res.json()
+        alert('Failed to mark income as received: ' + (errData.error || res.statusText))
       }
     } catch (err) {
         console.error(err)
+        alert('Network error while marking income as received.')
     }
   }
 
@@ -560,7 +562,7 @@ function Dashboard() {
       if (res.ok) {
         const data = await res.json()
         setFutureExpenses(prev => prev.map(exp => exp.id === id ? { ...exp, status: 'Confirmed' } : exp))
-        setTotalBalance(data.new_balance)
+        setTotalBalance(parseFloat(data.new_balance) || 0)
         // Refresh local expenses cache as it's now tracked
         const fe = futureExpenses.find(x => x.id === id)
         const dummyExp = { id: Date.now(), title: fe.title, amount: fe.amount, category_name: 'Others', created_at: new Date().toISOString() }
@@ -569,10 +571,11 @@ function Dashboard() {
         setTotalExpenses(prev => prev + parseFloat(fe.amount))
       } else {
         const errData = await res.json()
-        alert(errData.error || 'Failed to confirm expense.')
+        alert('Failed to confirm expense: ' + (errData.error || res.statusText))
       }
     } catch (err) {
         console.error(err)
+        alert('Network error while confirming expense.')
     }
   }
 
@@ -751,6 +754,111 @@ function Dashboard() {
           )}
         </div>
 
+        {/* Finance Overview Grid */}
+        {viewMode === 'recent' && (
+          <div className="row g-4 mb-4">
+            {/* Upcoming Income Section */}
+            <div className="col-md-6">
+              <div className="card shadow-sm h-100 border-0">
+                <div className="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+                  <h5 className="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
+                    <Wallet size={18} className="text-success" />
+                    Upcoming Income
+                  </h5>
+                  <button className="btn btn-sm btn-outline-success rounded-pill" onClick={() => setShowIncomeModal(true)}>
+                    <PlusCircle size={14} className="me-1" /> Add
+                  </button>
+                </div>
+                <div className="card-body p-0">
+                  <div className="table-responsive">
+                    <table className="table table-hover mb-0 align-middle">
+                      <tbody>
+                        {incomes.filter(inc => inc.status === 'Pending').slice(0, 3).length === 0 ? (
+                          <tr>
+                            <td className="text-center py-4 text-muted small">No pending incomes.</td>
+                          </tr>
+                        ) : (
+                          incomes.filter(inc => inc.status === 'Pending').slice(0, 3).map(inc => (
+                            <tr key={inc.id}>
+                              <td className="ps-4">
+                                <div className="fw-medium">{inc.source}</div>
+                                <div className="text-muted small">{new Date(inc.expected_date).toLocaleDateString()}</div>
+                              </td>
+                              <td className="text-end fw-bold text-success">
+                                Rs. {(parseFloat(inc.amount) || 0).toLocaleString('en-PK')}
+                              </td>
+                              <td className="text-end pe-4">
+                                <button className="btn btn-sm btn-link text-success p-0" title="Receive" onClick={() => handleReceiveIncome(inc.id)}>
+                                  <CheckCircle size={18} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  {incomes.length > 0 && (
+                    <div className="card-footer bg-white border-0 text-center py-2">
+                      <button className="btn btn-link btn-sm text-decoration-none" onClick={() => setViewMode('incomes')}>View All Incomes</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Upcoming Expenses Section */}
+            <div className="col-md-6">
+              <div className="card shadow-sm h-100 border-0">
+                <div className="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+                  <h5 className="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
+                    <Clock size={18} className="text-warning" />
+                    Upcoming Expenses
+                  </h5>
+                  <button className="btn btn-sm btn-outline-warning rounded-pill" onClick={() => setShowFutureExpenseModal(true)}>
+                    <PlusCircle size={14} className="me-1" /> Plan
+                  </button>
+                </div>
+                <div className="card-body p-0">
+                  <div className="table-responsive">
+                    <table className="table table-hover mb-0 align-middle">
+                      <tbody>
+                        {futureExpenses.filter(exp => exp.status === 'Planned').slice(0, 3).length === 0 ? (
+                          <tr>
+                            <td className="text-center py-4 text-muted small">No planned expenses.</td>
+                          </tr>
+                        ) : (
+                          futureExpenses.filter(exp => exp.status === 'Planned').slice(0, 3).map(exp => (
+                            <tr key={exp.id}>
+                              <td className="ps-4">
+                                <div className="fw-medium">{exp.title}</div>
+                                <div className="text-muted small">{new Date(exp.expected_date).toLocaleDateString()}</div>
+                              </td>
+                              <td className="text-end fw-bold text-danger">
+                                Rs. {(parseFloat(exp.amount) || 0).toLocaleString('en-PK')}
+                              </td>
+                              <td className="text-end pe-4">
+                                <button className="btn btn-sm btn-link text-warning p-0" title="Confirm" onClick={() => handleConfirmFutureExpense(exp.id)}>
+                                  <CheckCircle size={18} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  {futureExpenses.length > 0 && (
+                    <div className="card-footer bg-white border-0 text-center py-2">
+                      <button className="btn btn-link btn-sm text-decoration-none" onClick={() => setViewMode('future_expenses')}>View All Plans</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Budget Overview Section */}
         {viewMode === 'recent' && budgetStatus.length > 0 && (
           <div className="card shadow-sm mb-4 border-0">
@@ -854,37 +962,6 @@ function Dashboard() {
               )}
             </div>
 
-            {/* Income Modal */}
-            {showIncomeModal && (
-              <div className="modal d-block" style={{backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050}}>
-                <div className="modal-dialog modal-dialog-centered">
-                  <div className="modal-content border-0 shadow">
-                    <div className="modal-header border-0 pb-0">
-                      <h5 className="modal-title fw-bold">Add Upcoming Income</h5>
-                      <button type="button" className="btn-close" onClick={() => setShowIncomeModal(false)}></button>
-                    </div>
-                    <div className="modal-body">
-                      {incomeMessage && <div className={`alert py-2 ${incomeMessage.includes('✅') ? 'alert-success' : 'alert-warning'}`}>{incomeMessage}</div>}
-                      <form onSubmit={handleAddIncome}>
-                        <div className="mb-3">
-                          <label className="form-label text-muted small">Source/Title</label>
-                          <input type="text" className="form-control" placeholder="e.g. Salary, Freelance" value={incomeForm.source} onChange={e => setIncomeForm({...incomeForm, source: e.target.value})} required />
-                        </div>
-                        <div className="mb-3">
-                          <label className="form-label text-muted small">Amount (Rs.)</label>
-                          <input type="number" className="form-control" placeholder="e.g. 50000" min="1" step="0.01" value={incomeForm.amount} onChange={e => setIncomeForm({...incomeForm, amount: e.target.value})} required />
-                        </div>
-                        <div className="mb-4">
-                          <label className="form-label text-muted small">Expected Date</label>
-                          <input type="date" className="form-control" value={incomeForm.expected_date} onChange={e => setIncomeForm({...incomeForm, expected_date: e.target.value})} required />
-                        </div>
-                        <button type="submit" className="btn btn-primary w-100 mb-2">Save Income</button>
-                      </form>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         ) : viewMode === 'future_expenses' ? (
           <div>
@@ -930,37 +1007,6 @@ function Dashboard() {
               )}
             </div>
 
-            {/* Future Expense Modal */}
-            {showFutureExpenseModal && (
-              <div className="modal d-block" style={{backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050}}>
-                <div className="modal-dialog modal-dialog-centered">
-                  <div className="modal-content border-0 shadow">
-                    <div className="modal-header border-0 pb-0">
-                      <h5 className="modal-title fw-bold">Plan Future Expense</h5>
-                      <button type="button" className="btn-close" onClick={() => setShowFutureExpenseModal(false)}></button>
-                    </div>
-                    <div className="modal-body">
-                      {futureExpenseMessage && <div className={`alert py-2 ${futureExpenseMessage.includes('✅') ? 'alert-success' : 'alert-warning'}`}>{futureExpenseMessage}</div>}
-                      <form onSubmit={handleAddFutureExpense}>
-                        <div className="mb-3">
-                          <label className="form-label text-muted small">Description</label>
-                          <input type="text" className="form-control" placeholder="e.g. Electric Bill, Rent" value={futureExpenseForm.title} onChange={e => setFutureExpenseForm({...futureExpenseForm, title: e.target.value})} required />
-                        </div>
-                        <div className="mb-3">
-                          <label className="form-label text-muted small">Amount (Rs.)</label>
-                          <input type="number" className="form-control" placeholder="e.g. 15000" min="1" step="0.01" value={futureExpenseForm.amount} onChange={e => setFutureExpenseForm({...futureExpenseForm, amount: e.target.value})} required />
-                        </div>
-                        <div className="mb-4">
-                          <label className="form-label text-muted small">Expected Date</label>
-                          <input type="date" className="form-control" value={futureExpenseForm.expected_date} onChange={e => setFutureExpenseForm({...futureExpenseForm, expected_date: e.target.value})} required />
-                        </div>
-                        <button type="submit" className="btn btn-primary w-100 mb-2">Save Plan</button>
-                      </form>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         ) : viewMode === 'employees' ? (
           <div>
@@ -1168,6 +1214,69 @@ function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Global Modals for Financial Planning */}
+      {showIncomeModal && (
+        <div className="modal d-block" style={{backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050}}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0 shadow">
+              <div className="modal-header border-0 pb-0">
+                <h5 className="modal-title fw-bold">Add Upcoming Income</h5>
+                <button type="button" className="btn-close" onClick={() => setShowIncomeModal(false)}></button>
+              </div>
+              <div className="modal-body">
+                {incomeMessage && <div className={`alert py-2 ${incomeMessage.includes('✅') ? 'alert-success' : 'alert-warning'}`}>{incomeMessage}</div>}
+                <form onSubmit={handleAddIncome}>
+                  <div className="mb-3">
+                    <label className="form-label text-muted small">Source/Title</label>
+                    <input type="text" className="form-control" placeholder="e.g. Salary, Freelance" value={incomeForm.source} onChange={e => setIncomeForm({...incomeForm, source: e.target.value})} required />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label text-muted small">Amount (Rs.)</label>
+                    <input type="number" className="form-control" placeholder="e.g. 50000" min="1" step="0.01" value={incomeForm.amount} onChange={e => setIncomeForm({...incomeForm, amount: e.target.value})} required />
+                  </div>
+                  <div className="mb-4">
+                    <label className="form-label text-muted small">Expected Date</label>
+                    <input type="date" className="form-control" value={incomeForm.expected_date} onChange={e => setIncomeForm({...incomeForm, expected_date: e.target.value})} required />
+                  </div>
+                  <button type="submit" className="btn btn-primary w-100 mb-2">Save Income</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showFutureExpenseModal && (
+        <div className="modal d-block" style={{backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050}}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0 shadow">
+              <div className="modal-header border-0 pb-0">
+                <h5 className="modal-title fw-bold">Plan Future Expense</h5>
+                <button type="button" className="btn-close" onClick={() => setShowFutureExpenseModal(false)}></button>
+              </div>
+              <div className="modal-body">
+                {futureExpenseMessage && <div className={`alert py-2 ${futureExpenseMessage.includes('✅') ? 'alert-success' : 'alert-warning'}`}>{futureExpenseMessage}</div>}
+                <form onSubmit={handleAddFutureExpense}>
+                  <div className="mb-3">
+                    <label className="form-label text-muted small">Description</label>
+                    <input type="text" className="form-control" placeholder="e.g. Electric Bill, Rent" value={futureExpenseForm.title} onChange={e => setFutureExpenseForm({...futureExpenseForm, title: e.target.value})} required />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label text-muted small">Amount (Rs.)</label>
+                    <input type="number" className="form-control" placeholder="e.g. 15000" min="1" step="0.01" value={futureExpenseForm.amount} onChange={e => setFutureExpenseForm({...futureExpenseForm, amount: e.target.value})} required />
+                  </div>
+                  <div className="mb-4">
+                    <label className="form-label text-muted small">Expected Date</label>
+                    <input type="date" className="form-control" value={futureExpenseForm.expected_date} onChange={e => setFutureExpenseForm({...futureExpenseForm, expected_date: e.target.value})} required />
+                  </div>
+                  <button type="submit" className="btn btn-primary w-100 mb-2">Save Plan</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

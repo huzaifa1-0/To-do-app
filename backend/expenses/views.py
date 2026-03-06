@@ -298,6 +298,7 @@ class IncomeViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def receive(self, request, pk=None):
         income = self.get_object()
+        print(f"DEBUG: Receiving income {income.id} for user {request.user.email}")
         if income.status == 'Received':
             return Response({"error": "Income is already marked as received."}, status=400)
             
@@ -306,8 +307,10 @@ class IncomeViewSet(viewsets.ModelViewSet):
         
         # Increase user total_balance
         user = request.user
+        old_balance = user.total_balance
         user.total_balance += Decimal(str(income.amount))
         user.save(update_fields=['total_balance'])
+        print(f"DEBUG: Balance updated from {old_balance} to {user.total_balance}")
         
         return Response({"message": "Income received and balance updated.", "new_balance": user.total_balance})
 
@@ -325,6 +328,7 @@ class FutureExpenseViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def confirm(self, request, pk=None):
         future_expense = self.get_object()
+        print(f"DEBUG: Confirming future expense {future_expense.id} for user {request.user.email}")
         if future_expense.status == 'Confirmed':
             return Response({"error": "Future expense is already confirmed."}, status=400)
             
@@ -334,6 +338,7 @@ class FutureExpenseViewSet(viewsets.ModelViewSet):
         # Check budget
         is_allowed, error_msg = check_budget(request.user, category, future_expense.amount)
         if not is_allowed:
+            print(f"DEBUG: Budget check failed: {error_msg}")
             return Response({"error": error_msg}, status=400)
             
         future_expense.status = 'Confirmed'
@@ -350,8 +355,10 @@ class FutureExpenseViewSet(viewsets.ModelViewSet):
         
         # Deduct from user total_balance
         user = request.user
+        old_balance = user.total_balance
         user.total_balance -= Decimal(str(future_expense.amount))
         user.save(update_fields=['total_balance'])
+        print(f"DEBUG: Balance updated from {old_balance} to {user.total_balance}")
         
         return Response({
             "message": "Future expense confirmed, recorded as reality, and balance updated.", 
