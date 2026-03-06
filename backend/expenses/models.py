@@ -57,3 +57,41 @@ class Expense(models.Model):
 
     def __str__(self):
         return f"{self.title} - {self.amount}"
+
+class Income(models.Model):
+    STATUS_CHOICES = (
+        ('Pending', 'Pending'),
+        ('Received', 'Received'),
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="incomes"
+    )
+    source = models.CharField(max_length=255)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    expected_date = models.DateField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.source} - {self.amount} - {self.status}"
+
+class FutureExpense(models.Model):
+    STATUS_CHOICES = (
+        ('Planned', 'Planned'),
+        ('Confirmed', 'Confirmed'),
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="future_expenses"
+    )
+    title = models.CharField(max_length=255)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    expected_date = models.DateField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Planned')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.title} - {self.amount} - {self.status}"

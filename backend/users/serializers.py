@@ -8,10 +8,11 @@ User = get_user_model()
 
 class RegisterSerializer(serializers.ModelSerializer):
     confirm_password = serializers.CharField(write_only=True)
+    current_income = serializers.DecimalField(max_digits=12, decimal_places=2, write_only=True, required=False, default=0.00)
 
     class Meta:
         model = User
-        fields = ('id', 'first_name', 'last_name', 'email', 'password', 'confirm_password')
+        fields = ('id', 'first_name', 'last_name', 'email', 'password', 'confirm_password', 'current_income')
         extra_kwargs = {
             'password': {'write_only': True}
         }
@@ -24,7 +25,11 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data.pop('confirm_password')
+        current_income = validated_data.pop('current_income', 0.00)
+        
         user = User.objects.create_user(**validated_data)
+        user.total_balance = current_income
+        user.save(update_fields=['total_balance'])
         return user
 
 class EmployeeSerializer(serializers.ModelSerializer):

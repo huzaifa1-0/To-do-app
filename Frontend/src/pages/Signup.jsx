@@ -10,7 +10,8 @@ function Signup() {
     password: '',
     confirmPassword: '',
     firstName: '',
-    lastName: ''
+    lastName: '',
+    currentIncome: ''
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -58,7 +59,8 @@ function Signup() {
           last_name: formData.lastName,
           email: formData.email,
           password: formData.password,
-          confirm_password: formData.confirmPassword
+          confirm_password: formData.confirmPassword,
+          current_income: formData.currentIncome ? parseFloat(formData.currentIncome) : 0.00
         })
       })
 
@@ -181,6 +183,22 @@ function Signup() {
                         placeholder="Doe"
                       />
                     </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <label htmlFor="currentIncome" className="form-label">Current Income / Initial Balance (Rs.)</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      id="currentIncome"
+                      name="currentIncome"
+                      value={formData.currentIncome}
+                      onChange={handleChange}
+                      placeholder="e.g. 50000"
+                      min="0"
+                      step="0.01"
+                    />
+                    <div className="form-text small text-muted">This will be your starting balance. (Optional)</div>
                   </div>
 
                   <div className="mb-3">

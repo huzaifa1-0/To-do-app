@@ -1,3 +1,4 @@
+from rest_framework.decorators import action
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -8,8 +9,8 @@ from datetime import timedelta, datetime
 from decimal import Decimal
 import pytz
 
-from .models import Expense, Category, UserCategoryBudget
-from .serializers import ExpenseSerializer
+from .models import Expense, Category, UserCategoryBudget, Income, FutureExpense
+from .serializers import ExpenseSerializer, IncomeSerializer, FutureExpenseSerializer
 
 
 def check_budget(user, category, amount_to_add):
@@ -109,8 +110,22 @@ class ExpenseViewSet(viewsets.ModelViewSet):
             from rest_framework.exceptions import ValidationError
             raise ValidationError(error_msg)
             
-        serializer.save(user=self.request.user)
+        expense = serializer.save(user=self.request.user)
+        
+        # Deduct from user's balance
+        user = self.request.user
+        user.total_balance -= Decimal(str(amount))
+        user.save(update_fields=['total_balance'])
 
+    def perform_destroy(self, instance):
+        amount = instance.amount
+        user = instance.user
+        
+        # Add back to user's balance
+        user.total_balance += Decimal(str(amount))
+        user.save(update_fields=['total_balance'])
+        
+        instance.delete()
 
 # 2️⃣ 12 AM PKT Daily Reset View
 class TodayExpenseTotalView(APIView):
@@ -133,6 +148,7 @@ class TodayExpenseTotalView(APIView):
 
         return Response({
             "today_total": total_amount,
+            "total_balance": request.user.total_balance,
             "currency": "PKR"
         })
 
@@ -256,6 +272,10 @@ class AIProcessExpenseView(APIView):
                 category=category,
                 description=expense_title if len(expense_title) > 255 else ''
             )
+            
+            # Deduct from total balance
+            request.user.total_balance -= Decimal(str(amount))
+            request.user.save(update_fields=['total_balance'])
         except Exception as e:
             return Response({"error": str(e)}, status=400)
             
@@ -263,3 +283,77 @@ class AIProcessExpenseView(APIView):
             "message": "Expense successfully parsed and saved.",
             "data": ExpenseSerializer(expense).data
         }, status=201)
+
+# 7️⃣ Income Management ViewSet
+class IncomeViewSet(viewsets.ModelViewSet):
+    serializer_class = IncomeSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Income.objects.filter(user=self.request.user).order_by('expected_date')
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def receive(self, request, pk=None):
+        income = self.get_object()
+        if income.status == 'Received':
+            return Response({"error": "Income is already marked as received."}, status=400)
+            
+        income.status = 'Received'
+        income.save(update_fields=['status'])
+        
+        # Increase user total_balance
+        user = request.user
+        user.total_balance += Decimal(str(income.amount))
+        user.save(update_fields=['total_balance'])
+        
+        return Response({"message": "Income received and balance updated.", "new_balance": user.total_balance})
+
+# 8️⃣ Future Expense Planner ViewSet
+class FutureExpenseViewSet(viewsets.ModelViewSet):
+    serializer_class = FutureExpenseSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return FutureExpense.objects.filter(user=self.request.user).order_by('expected_date')
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    @action(detail=True, methods=['post'])
+    def confirm(self, request, pk=None):
+        future_expense = self.get_object()
+        if future_expense.status == 'Confirmed':
+            return Response({"error": "Future expense is already confirmed."}, status=400)
+            
+        # Optional mapping of title to category. Let's create an "Others" category.
+        category, _ = Category.objects.get_or_create(name="Others")
+        
+        # Check budget
+        is_allowed, error_msg = check_budget(request.user, category, future_expense.amount)
+        if not is_allowed:
+            return Response({"error": error_msg}, status=400)
+            
+        future_expense.status = 'Confirmed'
+        future_expense.save(update_fields=['status'])
+        
+        # Create an actual expense
+        Expense.objects.create(
+            user=request.user,
+            title=future_expense.title,
+            amount=future_expense.amount,
+            category=category,
+            description="Created from planned future expense"
+        )
+        
+        # Deduct from user total_balance
+        user = request.user
+        user.total_balance -= Decimal(str(future_expense.amount))
+        user.save(update_fields=['total_balance'])
+        
+        return Response({
+            "message": "Future expense confirmed, recorded as reality, and balance updated.", 
+            "new_balance": user.total_balance
+        })

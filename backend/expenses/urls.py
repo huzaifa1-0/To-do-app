@@ -7,10 +7,14 @@ from .views import (
     TotalSpendingView, 
     CategorySummaryView, 
     AIProcessExpenseView,
-    BudgetStatusView
+    BudgetStatusView,
+    IncomeViewSet,
+    FutureExpenseViewSet
 )
 
 router = DefaultRouter()
+router.register(r'incomes', IncomeViewSet, basename='income')
+router.register(r'future-expenses', FutureExpenseViewSet, basename='future-expense')
 router.register(r'', ExpenseViewSet, basename='expense')
 
 urlpatterns = [

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Expense, Category, UserCategoryBudget
+from .models import Expense, Category, UserCategoryBudget, Income, FutureExpense
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
@@ -32,3 +32,15 @@ class ExpenseSerializer(serializers.ModelSerializer):
         if value is None:
             raise serializers.ValidationError("Category is required.")
         return value
+
+class IncomeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Income
+        fields = ['id', 'user', 'source', 'amount', 'expected_date', 'status', 'created_at']
+        read_only_fields = ['id', 'user', 'created_at']
+
+class FutureExpenseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FutureExpense
+        fields = ['id', 'user', 'title', 'amount', 'expected_date', 'status', 'created_at']
+        read_only_fields = ['id', 'user', 'created_at']
