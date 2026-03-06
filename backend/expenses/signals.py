@@ -62,32 +62,4 @@ Daily Expense Tracker Team"""
 
         send_async_email(subject, message, [user.email])
 
-@receiver(post_save, sender=Expense)
-def notify_user_on_expense_assignment(sender, instance, created, **kwargs):
-    # Only notify if created by admin (no need to check for update here, usually expenses are set once)
-    # The requirement says "assigning amount", so if admin adds an expense, we notify.
-    with open('signal_debug.log', 'a') as f:
-        f.write(f"EXPENSE POST_SAVE: {instance.id}, user: {instance.user.email}\n")
-    
-    if created:
-        user = instance.user
-        
-        # Only send this email if the user is an employee (has an employer).
-        # Independent users track their own expenses and do not need admin notifications.
-        if not user.employer:
-            return
-            
-        category_name = instance.category.name if instance.category else "Uncategorized"
-        
-        subject = f"Expense Recorded: {instance.title}"
-        message = f"""Hello {user.first_name or 'User'},
 
-The administrator has recorded an expense for you:
-Title: {instance.title}
-Amount: Rs. {instance.amount}
-Category: {category_name}
-
-Regards
-Daily Expense Tracker Team"""
-
-        send_async_email(subject, message, [user.email])
