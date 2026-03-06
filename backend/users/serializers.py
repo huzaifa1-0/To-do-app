@@ -27,6 +27,20 @@ class RegisterSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(**validated_data)
         return user
 
+class EmployeeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ('id', 'first_name', 'last_name', 'email', 'assigned_amount')
+
+from .models import Invitation
+
+class InvitationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Invitation
+        fields = ('id', 'employer', 'email', 'token', 'accepted', 'created_at')
+        read_only_fields = ('id', 'employer', 'token', 'accepted', 'created_at')
+
+
 # --- Password Reset Serializers ---
 class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()

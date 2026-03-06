@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
+import uuid
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -20,6 +21,7 @@ class User(AbstractUser):
     username = None
     email = models.EmailField(unique=True)
     assigned_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    employer = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='employees')
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = [] # Username is removed, email is handled automatically
@@ -36,3 +38,13 @@ class PasswordResetOTP(models.Model):
 
     def __str__(self):
         return f"{self.user.email} - {self.otp}"
+
+class Invitation(models.Model):
+    employer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_invitations')
+    email = models.EmailField()
+    token = models.UUIDField(default=uuid.uuid4, unique=True)
+    accepted = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Invite to {self.email} from {self.employer.email}"

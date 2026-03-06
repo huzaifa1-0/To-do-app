@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { TrendingUp, Calendar, DollarSign, LogOut, User } from 'lucide-react'
+import { TrendingUp, Calendar, DollarSign, LogOut, User, Users, PlusCircle, Trash2 } from 'lucide-react'
 import 'bootstrap/dist/css/bootstrap.min.css'
 import { API_BASE_URL as BASE_URL } from '../api/config'
 
 const API_BASE_URL = `${BASE_URL}/expenses/`
+const USERS_API_URL = `${BASE_URL}/`
 
 const categories = ['All', 'Food', 'Travel', 'Transportation', 'Shopping', 'Entertainment', 'Healthcare', 'Utilities', 'Miscellaneous', 'Others']
 
@@ -12,7 +13,19 @@ function Dashboard() {
   const [showAllExpenses, setShowAllExpenses] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState(null)
-  const [viewMode, setViewMode] = useState('recent') // 'recent', 'categories', 'category-expenses'
+  const [viewMode, setViewMode] = useState('recent') // 'recent', 'categories', 'category-expenses', 'employees'
+  const [employees, setEmployees] = useState([])
+
+  // Modal states
+  const [showInviteModal, setShowInviteModal] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteMessage, setInviteMessage] = useState('')
+
+  const [showAssignModal, setShowAssignModal] = useState(false)
+  const [selectedEmployee, setSelectedEmployee] = useState(null)
+  const [assignAmount, setAssignAmount] = useState('')
+  const [assignCategory, setAssignCategory] = useState('')
+  const [assignMessage, setAssignMessage] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [currentUser, setCurrentUser] = useState(null)
   const navigate = useNavigate()
@@ -292,6 +305,149 @@ function Dashboard() {
     }
   }, [selectedCategory, viewMode])
 
+  // Fetch employees
+  useEffect(() => {
+    if (viewMode === 'employees') {
+      const fetchEmployees = async () => {
+        try {
+          const accessToken = localStorage.getItem('access_token')
+          if (!accessToken) return;
+          const res = await fetch(`${USERS_API_URL}employees/`, {
+            headers: { 'Authorization': `Bearer ${accessToken}` }
+          })
+          if (res.ok) {
+            const data = await res.json()
+            setEmployees(data)
+          }
+        } catch (error) {
+          console.error('Error fetching employees:', error)
+        }
+      }
+      fetchEmployees()
+    }
+  }, [viewMode])
+
+  const handleInvite = async (e) => {
+    e.preventDefault()
+    setInviteMessage('Sending invitation...')
+    try {
+      const accessToken = localStorage.getItem('access_token')
+      const res = await fetch(`${USERS_API_URL}invite/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({ email: inviteEmail })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setInviteMessage('✅ ' + data.message)
+        setInviteEmail('')
+        setTimeout(() => { setShowInviteModal(false); setInviteMessage('') }, 2000)
+      } else {
+        setInviteMessage('⚠️ ' + (data.error || 'Failed to send invite'))
+      }
+    } catch (err) {
+      setInviteMessage('⚠️ Network error')
+    }
+  }
+
+  const handleAssign = async (e) => {
+    e.preventDefault()
+    setAssignMessage('Assigning money...')
+    try {
+      const accessToken = localStorage.getItem('access_token')
+      const res = await fetch(`${USERS_API_URL}assign-money/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          employee_id: selectedEmployee.id,
+          amount: assignAmount,
+          category: assignCategory || null
+        })
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setAssignMessage('✅ ' + data.message)
+        // update employee list locally
+        setEmployees(prev => prev.map(emp =>
+          emp.id === selectedEmployee.id
+            ? { ...emp, assigned_amount: data.new_balance, remaining_balance: data.new_balance - emp.total_expenses }
+            : emp
+        ))
+        setAssignAmount('')
+        setAssignCategory('')
+        setTimeout(() => { setShowAssignModal(false); setAssignMessage('') }, 2000)
+      } else {
+        setAssignMessage('⚠️ ' + (data.error || 'Failed to assign money'))
+      }
+    } catch (err) {
+      setAssignMessage('⚠️ Network error')
+    }
+  }
+
+  const handleDeleteExpense = async (expenseId, amount, categoryName) => {
+    if (!window.confirm('Are you sure you want to delete this expense?')) return
+
+    try {
+      const accessToken = localStorage.getItem('access_token')
+      const res = await fetch(`${API_BASE_URL}${expenseId}/`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      })
+
+      if (res.ok) {
+        // Remove from all local states
+        setAllExpenses(prev => prev.filter(e => e.id !== expenseId))
+        setTodayExpenses(prev => prev.filter(e => e.id !== expenseId))
+        setCategoryExpenses(prev => prev.filter(e => e.id !== expenseId))
+
+        // Update totals
+        setTotalExpenses(prev => Math.max(0, prev - parseFloat(amount)))
+
+        // Update category summary
+        setCategorySummary(prev => {
+          return prev.map(cat => {
+            if (cat.category === categoryName) {
+              return {
+                ...cat,
+                total: Math.max(0, cat.total - parseFloat(amount)),
+                count: Math.max(0, cat.count - 1)
+              }
+            }
+            return cat
+          }).filter(cat => cat.count > 0) // Remove categories with 0 expenses
+        })
+
+        // Update budget status remaining balance
+        setBudgetStatus(prev => {
+          return prev.map(item => {
+            if (item.category === categoryName) {
+              const newSpent = Math.max(0, item.spent - parseFloat(amount))
+              return {
+                ...item,
+                spent: newSpent,
+                remaining: item.allocated - newSpent
+              }
+            }
+            return item
+          })
+        })
+      } else {
+        alert('Failed to delete expense.')
+      }
+    } catch (err) {
+      console.error('Error deleting expense:', err)
+      alert('Network error while deleting expense.')
+    }
+  }
+
   const recentExpenses = todayExpenses
 
   // Get unique categories with their total amounts from API summary
@@ -329,13 +485,22 @@ function Dashboard() {
                     {currentUser.first_name || currentUser.email}
                   </span>
                 </div>
-                <button
-                  className="btn btn-outline-light btn-sm"
-                  onClick={handleLogout}
-                >
-                  <LogOut size={16} className="me-1" />
-                  Logout
-                </button>
+                <div className="d-flex align-items-center gap-2">
+                  <button
+                    className={`btn btn-sm ${viewMode === 'employees' ? 'btn-light text-primary' : 'btn-outline-light'}`}
+                    onClick={() => setViewMode('employees')}
+                  >
+                    <Users size={16} className="me-1" />
+                    Team
+                  </button>
+                  <button
+                    className="btn btn-outline-light btn-sm"
+                    onClick={handleLogout}
+                  >
+                    <LogOut size={16} className="me-1" />
+                    Logout
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -485,7 +650,7 @@ function Dashboard() {
           </div>
         )}
 
-        {viewMode !== 'recent' && (
+        {viewMode !== 'recent' && viewMode !== 'employees' && (
           <button
             className="btn btn-primary mb-3"
             onClick={() => {
@@ -497,7 +662,136 @@ function Dashboard() {
           </button>
         )}
 
-        {viewMode === 'categories' ? (
+        {viewMode === 'employees' && (
+          <button
+            className="btn btn-primary mb-3"
+            onClick={() => setViewMode('recent')}
+          >
+            ← Back to Dashboard
+          </button>
+        )}
+
+        {viewMode === 'employees' ? (
+          <div>
+            <div className="d-flex justify-content-between align-items-center mb-4">
+              <h3 className="mb-0 d-flex align-items-center gap-2">
+                <Users className="text-primary" /> Team Management
+              </h3>
+              <button className="btn btn-primary d-flex align-items-center gap-2"
+                onClick={() => setShowInviteModal(true)}>
+                <PlusCircle size={18} /> Invite Employee
+              </button>
+            </div>
+
+            <div className="row g-4">
+              {employees.length === 0 ? (
+                <div className="col-12 text-center py-5">
+                  <p className="text-muted">You have no employees yet. Invite them to get started.</p>
+                </div>
+              ) : (
+                employees.map(emp => (
+                  <div key={emp.id} className="col-md-6 col-lg-4">
+                    <div className="card shadow-sm h-100 border-0">
+                      <div className="card-body">
+                        <div className="d-flex align-items-center gap-3 mb-3">
+                          <div className="bg-light text-primary rounded-circle d-flex justify-content-center align-items-center fw-bold" style={{ width: '50px', height: '50px', fontSize: '20px' }}>
+                            {emp.first_name ? emp.first_name[0].toUpperCase() : emp.email[0].toUpperCase()}
+                          </div>
+                          <div>
+                            <h5 className="mb-0 fw-bold">{emp.first_name} {emp.last_name}</h5>
+                            <p className="mb-0 text-muted small">{emp.email}</p>
+                          </div>
+                        </div>
+                        <div className="mb-3">
+                          <div className="d-flex justify-content-between mb-1">
+                            <span className="text-muted small">Assigned Budget</span>
+                            <span className="fw-bold">Rs. {(parseFloat(emp.assigned_amount) || 0).toLocaleString('en-PK')}</span>
+                          </div>
+                          <div className="d-flex justify-content-between mb-1">
+                            <span className="text-muted small">Total Spent</span>
+                            <span className="text-danger fw-bold">Rs. {(parseFloat(emp.total_expenses) || 0).toLocaleString('en-PK')}</span>
+                          </div>
+                          <div className="d-flex justify-content-between border-top pt-2 mt-2">
+                            <span className="text-primary fw-bold small">Remaining</span>
+                            <span className="text-success fw-bold">Rs. {(parseFloat(emp.remaining_balance) || 0).toLocaleString('en-PK')}</span>
+                          </div>
+                        </div>
+                        <button
+                          className="btn btn-outline-primary w-100"
+                          onClick={() => {
+                            setSelectedEmployee(emp)
+                            setShowAssignModal(true)
+                          }}
+                        >
+                          <DollarSign size={16} className="me-1" /> Assign Money
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Invite Modal */}
+            {showInviteModal && (
+              <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+                <div className="modal-dialog modal-dialog-centered">
+                  <div className="modal-content border-0 shadow">
+                    <div className="modal-header border-0 pb-0">
+                      <h5 className="modal-title fw-bold">Invite Employee</h5>
+                      <button type="button" className="btn-close" onClick={() => setShowInviteModal(false)}></button>
+                    </div>
+                    <div className="modal-body">
+                      {inviteMessage && <div className="alert alert-info py-2">{inviteMessage}</div>}
+                      <form onSubmit={handleInvite}>
+                        <div className="mb-3">
+                          <label className="form-label text-muted small">Email Address</label>
+                          <input type="email" className="form-control" placeholder="employee@example.com" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} required />
+                        </div>
+                        <button type="submit" className="btn btn-primary w-100 mb-2">Send Invitation</button>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Assign Modal */}
+            {showAssignModal && selectedEmployee && (
+              <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+                <div className="modal-dialog modal-dialog-centered">
+                  <div className="modal-content border-0 shadow">
+                    <div className="modal-header border-0 pb-0">
+                      <h5 className="modal-title fw-bold">Assign Money to {selectedEmployee.first_name || 'Employee'}</h5>
+                      <button type="button" className="btn-close" onClick={() => setShowAssignModal(false)}></button>
+                    </div>
+                    <div className="modal-body">
+                      {assignMessage && <div className="alert alert-info py-2">{assignMessage}</div>}
+                      <form onSubmit={handleAssign}>
+                        <div className="mb-3">
+                          <label className="form-label text-muted small">Amount (Rs.)</label>
+                          <input type="number" className="form-control" placeholder="e.g. 5000" min="1" step="0.01" value={assignAmount} onChange={e => setAssignAmount(e.target.value)} required />
+                        </div>
+                        <div className="mb-4">
+                          <label className="form-label text-muted small">Category (Optional)</label>
+                          <select className="form-select" value={assignCategory} onChange={e => setAssignCategory(e.target.value)}>
+                            <option value="">General (No Category limit)</option>
+                            {categories.filter(c => c !== 'All').map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </select>
+                          <div className="form-text mt-2 small text-muted">If General is selected, the budget goes to the overall account. Else it's bound to a specific category.</div>
+                        </div>
+                        <button type="submit" className="btn btn-primary w-100 mb-2">Confirm Assignment</button>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </div>
+        ) : viewMode === 'categories' ? (
           <div className="row g-4">
             {loading ? (
               <div className="text-center py-5">
@@ -553,7 +847,16 @@ function Dashboard() {
                           <h5 className="card-title">{expense.title}</h5>
                           <span className="badge bg-secondary">{expense.category_name}</span>
                         </div>
-                        <h5 className="text-primary fw-bold">Rs. {expense.amount.toLocaleString('en-PK', { minimumFractionDigits: 2 })}</h5>
+                        <div className="text-end">
+                          <h5 className="text-primary fw-bold mb-2">Rs. {expense.amount.toLocaleString('en-PK', { minimumFractionDigits: 2 })}</h5>
+                          <button
+                            className="btn btn-sm btn-outline-danger border-0"
+                            onClick={() => handleDeleteExpense(expense.id, expense.amount, expense.category_name)}
+                            title="Delete Expense"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </div>
                       <div className="mt-3 text-muted small d-flex align-items-center gap-2">
                         <Calendar size={14} />

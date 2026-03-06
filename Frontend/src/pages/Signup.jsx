@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { UserPlus, User, Eye, EyeOff, Wand2 } from 'lucide-react'
 import 'bootstrap/dist/css/bootstrap.min.css'
 import { API_BASE_URL } from '../api/config'
@@ -17,6 +17,8 @@ function Signup() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const inviteToken = searchParams.get('invite_token')
 
   const suggestPassword = () => {
     const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+"
@@ -84,10 +86,27 @@ function Signup() {
             first_name: formData.firstName || formData.email.split('@')[0],
             last_name: formData.lastName
           }))
+
+          // If invite token exists, accept it now
+          if (inviteToken) {
+            try {
+              await fetch(`${API_BASE_URL}/accept-invite/`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${loginData.access}`
+                },
+                body: JSON.stringify({ token: inviteToken })
+              })
+            } catch (err) {
+              console.error('Error accepting invite:', err)
+            }
+          }
+
           navigate('/')
         } else {
-          // If auto login fails, redirect to login page
-          navigate('/login')
+          // If auto login fails, redirect to login page (pass token if exists)
+          navigate(inviteToken ? `/login?invite_token=${inviteToken}` : '/login')
         }
       } else {
         // Handle validation errors
@@ -252,7 +271,7 @@ function Signup() {
                   <div className="text-center">
                     <p className="mb-0 text-muted">
                       Already have an account?{' '}
-                      <Link to="/login" className="text-primary text-decoration-none fw-bold">
+                      <Link to={inviteToken ? `/login?invite_token=${inviteToken}` : "/login"} className="text-primary text-decoration-none fw-bold">
                         Sign In
                       </Link>
                     </p>

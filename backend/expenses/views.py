@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.db.models import Sum, Count, F
 from django.utils import timezone
 from datetime import timedelta, datetime
+from decimal import Decimal
 import pytz
 
 from .models import Expense, Category, UserCategoryBudget
@@ -16,23 +17,40 @@ def check_budget(user, category, amount_to_add):
     Utility function to check if an expense exceeds the remaining budget.
     Returns (is_allowed, error_message)
     """
+    if not user.employer:
+        return True, ""
+        
+    try:
+        amount_to_add = Decimal(str(amount_to_add))
+    except (TypeError, ValueError):
+        amount_to_add = Decimal('0.00')
+
+    # Overall assigned budget check
+    total_spent_overall = Expense.objects.filter(user=user).aggregate(total=Sum('amount'))['total']
+    total_spent_overall = total_spent_overall or Decimal('0.00')
+    assigned_amount = user.assigned_amount or Decimal('0.00')
+    
+    remaining_overall = assigned_amount - total_spent_overall
+    if amount_to_add > remaining_overall:
+        return False, "This expense cannot be added because it exceeds your total allocated budget."
+
     if not category:
         return True, ""
         
     budget = UserCategoryBudget.objects.filter(user=user, category=category).first()
     if not budget:
-        # If no budget is set, we assume no limit for now, 
-        # or you could return False if you want to enforce that every category NEEDS a budget.
+        # If no specific category budget is set, assume it's allowed (as long as overall was okay)
         return True, ""
         
-    total_spent = Expense.objects.filter(
+    total_spent_cat = Expense.objects.filter(
         user=user, 
         category=category
-    ).aggregate(total=Sum('amount'))['total'] or 0
+    ).aggregate(total=Sum('amount'))['total']
+    total_spent_cat = total_spent_cat or Decimal('0.00')
     
-    remaining = budget.amount - total_spent
+    remaining_cat = (budget.amount or Decimal('0.00')) - total_spent_cat
     
-    if amount_to_add > remaining:
+    if amount_to_add > remaining_cat:
         return False, "This expense cannot be added because the allocated budget for this category has been exceeded."
     
     return True, ""
@@ -196,8 +214,13 @@ class AIProcessExpenseView(APIView):
         if not text:
             return Response({"error": "No text provided."}, status=400)
         # 1. Get user's allocated categories
-        user_budgets = UserCategoryBudget.objects.filter(user=request.user).select_related('category')
-        allowed_categories = [b.category.name for b in user_budgets]
+        if not request.user.employer:
+            # Independent users can use any available category
+            allowed_categories = list(Category.objects.values_list('name', flat=True))
+        else:
+            # Employees are restricted to categories they have budgets for
+            user_budgets = UserCategoryBudget.objects.filter(user=request.user).select_related('category')
+            allowed_categories = [b.category.name for b in user_budgets]
         
         # Always include 'Others' as a fallback
         if "Others" not in allowed_categories:

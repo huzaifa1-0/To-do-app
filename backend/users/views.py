@@ -11,7 +11,8 @@ from django.conf import settings
 
 from .serializers import (
     RegisterSerializer, 
-    PasswordResetRequestSerializer, PasswordResetVerifySerializer, PasswordResetConfirmSerializer
+    PasswordResetRequestSerializer, PasswordResetVerifySerializer, PasswordResetConfirmSerializer,
+    EmployeeSerializer, InvitationSerializer
 )
 
 User = get_user_model()
@@ -81,3 +82,131 @@ class PasswordResetConfirmView(APIView):
         PasswordResetOTP.objects.filter(user=user).delete()
         
         return Response({"message": "Password reset successful."}, status=status.HTTP_200_OK)
+
+from rest_framework.permissions import IsAuthenticated
+from django.db.models import Sum
+from .models import Invitation
+from decimal import Decimal, InvalidOperation
+from expenses.models import Category, UserCategoryBudget
+
+class InviteEmployeeView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        email = request.data.get('email')
+        if not email:
+            return Response({"error": "Email is required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        # Check if already invited or already an employee
+        if User.objects.filter(email=email, employer=request.user).exists():
+            return Response({"error": "User is already your employee."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        invitation, created = Invitation.objects.get_or_create(
+            employer=request.user, 
+            email=email, 
+            accepted=False
+        )
+        
+        # Send Email
+        invite_link = f"http://localhost:5173/signup?invite_token={invitation.token}"
+        send_mail(
+            "You are invited to join a Team Expense Workspace",
+            f"{request.user.email} has invited you to manage your expenses.\nClick the link to sign up or log in: {invite_link}",
+            "noreply@expenseapp.com",
+            [email],
+            fail_silently=False,
+        )
+        return Response({"message": "Invitation sent successfully."}, status=status.HTTP_200_OK)
+
+class AcceptInvitationView(APIView):
+    # This view might be called right after signup/login, so we need the user to be authenticated
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        token = request.data.get('token')
+        if not token:
+            return Response({"error": "Token is required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            invitation = Invitation.objects.get(token=token, accepted=False)
+        except Invitation.DoesNotExist:
+            return Response({"error": "Invalid or expired invitation token."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if invitation.email != request.user.email:
+            return Response({"error": "This invitation is for a different email address."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        request.user.employer = invitation.employer
+        request.user.save()
+        
+        invitation.accepted = True
+        invitation.save()
+        
+        return Response({"message": "Successfully joined the employer's workspace."}, status=status.HTTP_200_OK)
+
+class EmployeeListView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        # Annotate total expenses
+        employees = User.objects.filter(employer=request.user).annotate(
+            total_expenses=Sum('expenses__amount')
+        )
+        
+        data = []
+        for emp in employees:
+            total_exp = emp.total_expenses or 0
+            data.append({
+                "id": emp.id,
+                "first_name": emp.first_name,
+                "last_name": emp.last_name,
+                "email": emp.email,
+                "assigned_amount": emp.assigned_amount,
+                "total_expenses": total_exp,
+                "remaining_balance": (emp.assigned_amount or 0) - total_exp
+            })
+            
+        return Response(data, status=status.HTTP_200_OK)
+
+class AssignMoneyView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        employee_id = request.data.get('employee_id')
+        amount_str = request.data.get('amount')
+        category_name = request.data.get('category')
+        
+        if not employee_id or amount_str is None:
+            return Response({"error": "Both employee_id and amount are required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            employee = User.objects.get(id=employee_id, employer=request.user)
+        except User.DoesNotExist:
+            return Response({"error": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
+            
+        try:
+            amount = Decimal(str(amount_str))
+        except (InvalidOperation, TypeError, ValueError):
+            return Response({"error": "Invalid amount"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Update base assigned amount
+        if employee.assigned_amount is None:
+            employee.assigned_amount = Decimal('0.00')
+        
+        employee.assigned_amount += amount
+        employee.save() # This triggers the signal to send an email
+        
+        if category_name:
+            category, _ = Category.objects.get_or_create(name=category_name)
+            budget, created = UserCategoryBudget.objects.get_or_create(
+                user=employee, category=category,
+                defaults={'amount': Decimal('0.00')}
+            )
+            if budget.amount is None:
+                budget.amount = Decimal('0.00')
+            budget.amount += amount
+            budget.save()
+            
+        return Response({
+            "message": f"Successfully assigned Rs {amount} to {employee.email}.",
+            "new_balance": employee.assigned_amount
+        }, status=status.HTTP_200_OK)

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { LogIn, User } from 'lucide-react'
 import 'bootstrap/dist/css/bootstrap.min.css'
 import { API_BASE_URL } from '../api/config'
@@ -10,6 +10,8 @@ function Login() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const inviteToken = searchParams.get('invite_token')
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -40,6 +42,23 @@ function Login() {
         }))
 
         // Redirect to dashboard
+
+        // If invite token exists, accept it now
+        if (inviteToken) {
+          try {
+            await fetch(`${API_BASE_URL}/accept-invite/`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${data.access}`
+              },
+              body: JSON.stringify({ token: inviteToken })
+            })
+          } catch (err) {
+            console.error('Error accepting invite:', err)
+          }
+        }
+
         navigate('/')
       } else {
         // Handle login errors
@@ -126,7 +145,7 @@ function Login() {
                   <div className="text-center">
                     <p className="mb-0 text-muted">
                       Don't have an account?{' '}
-                      <Link to="/signup" className="text-primary text-decoration-none fw-bold">
+                      <Link to={inviteToken ? `/signup?invite_token=${inviteToken}` : "/signup"} className="text-primary text-decoration-none fw-bold">
                         Sign Up
                       </Link>
                     </p>
