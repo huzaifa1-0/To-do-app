@@ -59,7 +59,7 @@ function Login() {
           }
         }
 
-        navigate('/')
+        navigate('/dashboard2')
       } else {
         // Handle login errors
         if (data.detail) {
@@ -129,9 +129,9 @@ function Login() {
                   </div>
 
                   <div className="text-end mb-3">
-                    <Link to="/reset-password" className="text-primary text-decoration-none small fw-bold">
+                    <span className="text-muted small fw-bold" style={{ cursor: 'not-allowed', opacity: 0.5 }}>
                       Forgot Password?
-                    </Link>
+                    </span>
                   </div>
 
                   <button
