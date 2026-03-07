@@ -9,7 +9,8 @@ from .views import (
     AIProcessExpenseView,
     BudgetStatusView,
     IncomeViewSet,
-    FutureExpenseViewSet
+    FutureExpenseViewSet,
+    UpdateMonthlyLimitView
 )
 
 router = DefaultRouter()
@@ -32,6 +33,9 @@ urlpatterns = [
     
     # AI NLP Processor
     path('ai-process/', AIProcessExpenseView.as_view(), name='ai-process'),
+    
+    # Update Monthly Limit
+    path('update-monthly-limit/', UpdateMonthlyLimitView.as_view(), name='update-monthly-limit'),
     
     # DRF Router endpoints (CRUD) -> /api/expenses/ and /api/expenses/<id>/
     path('', include(router.urls)),

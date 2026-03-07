@@ -50,7 +50,7 @@ function Dashboard_2() {
     const [searchInput, setSearchInput] = useState('')
     const [transactionSearch, setTransactionSearch] = useState('')
     const [currentUser, setCurrentUser] = useState(null)
-    
+
     // Income tracking states
     const [totalBalance, setTotalBalance] = useState(0)
     const [incomes, setIncomes] = useState([])
@@ -65,7 +65,7 @@ function Dashboard_2() {
     const [incomeMessage, setIncomeMessage] = useState('')
     const [futureExpenseForm, setFutureExpenseForm] = useState({ title: '', amount: '', expected_date: '' })
     const [futureExpenseMessage, setFutureExpenseMessage] = useState('')
-    
+
     const navigate = useNavigate()
 
     // Check if user is logged in
@@ -118,6 +118,12 @@ function Dashboard_2() {
     const [allExpenses, setAllExpenses] = useState([])
     const [categorySummary, setCategorySummary] = useState([])
     const [budgetStatus, setBudgetStatus] = useState([])
+    const [monthlyLimit, setMonthlyLimit] = useState(0)
+    const [showLimitModal, setShowLimitModal] = useState(false)
+    const [limitAmount, setLimitAmount] = useState('')
+    const [limitMessage, setLimitMessage] = useState('')
+    const [shareMessage, setShareMessage] = useState('')
+    const [showQrModal, setShowQrModal] = useState(false)
     const [loading, setLoading] = useState(true)
 
     // Fetch data from APIs
@@ -147,6 +153,7 @@ function Dashboard_2() {
                 const totalData = await totalRes.json()
                 setTotalExpenses(totalData.today_total || 0)
                 setTotalBalance(parseFloat(totalData.total_balance) || 0)
+                setMonthlyLimit(parseFloat(totalData.monthly_limit) || 0)
 
                 // Fetch all expenses
                 const expensesRes = await fetch(`${API_BASE_URL}`, {
@@ -495,7 +502,7 @@ function Dashboard_2() {
             })
             if (res.ok) {
                 const data = await res.json()
-                setIncomes(prev => [...prev, data].sort((a,b) => new Date(a.expected_date) - new Date(b.expected_date)))
+                setIncomes(prev => [...prev, data].sort((a, b) => new Date(a.expected_date) - new Date(b.expected_date)))
                 setIncomeMessage('✅ Income Added!')
                 setIncomeForm({ source: '', amount: '', expected_date: '' })
                 setTimeout(() => { setShowIncomeModal(false); setIncomeMessage('') }, 1500)
@@ -545,7 +552,7 @@ function Dashboard_2() {
             })
             if (res.ok) {
                 const data = await res.json()
-                setFutureExpenses(prev => [...prev, data].sort((a,b) => new Date(a.expected_date) - new Date(b.expected_date)))
+                setFutureExpenses(prev => [...prev, data].sort((a, b) => new Date(a.expected_date) - new Date(b.expected_date)))
                 setFutureExpenseMessage('✅ Future Expense Added!')
                 setFutureExpenseForm({ title: '', amount: '', expected_date: '' })
                 setTimeout(() => { setShowFutureExpenseModal(false); setFutureExpenseMessage('') }, 1500)
@@ -564,7 +571,7 @@ function Dashboard_2() {
 
     const confirmFutureExpense = async () => {
         if (!selectedExpenseId) return
-        
+
         try {
             const accessToken = localStorage.getItem('access_token')
             const res = await fetch(`${FUTURE_EXPENSE_API_URL}${selectedExpenseId}/confirm/`, {
@@ -592,6 +599,50 @@ function Dashboard_2() {
         }
     }
 
+    const handleUpdateMonthlyLimit = async (e) => {
+        e.preventDefault()
+        setLimitMessage('Updating...')
+        try {
+            const accessToken = localStorage.getItem('access_token')
+            const res = await fetch(`${API_BASE_URL}update-monthly-limit/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+                body: JSON.stringify({ monthly_limit: limitAmount })
+            })
+            if (res.ok) {
+                const data = await res.json()
+                setMonthlyLimit(parseFloat(data.monthly_limit))
+                setLimitMessage('✅ Limit Updated!')
+                setTimeout(() => { setShowLimitModal(false); setLimitMessage(''); setLimitAmount('') }, 1500)
+            } else {
+                const errData = await res.json()
+                setLimitMessage(`⚠️ ${errData.error || 'Error'}`)
+            }
+        } catch (err) {
+            setLimitMessage('⚠️ Network error')
+        }
+    }
+
+    const handleShare = async () => {
+        const shareData = {
+            title: 'The Manager',
+            text: 'Check out this awesome Expense Tracker app!',
+            url: 'https://sparkly-smakager-f26a85.netlify.app/'
+        }
+
+        try {
+            if (navigator.share) {
+                await navigator.share(shareData)
+            } else {
+                await navigator.clipboard.writeText(shareData.url)
+                setShareMessage('✅ Link copied to clipboard!')
+                setTimeout(() => setShareMessage(''), 3000)
+            }
+        } catch (err) {
+            console.error('Error sharing:', err)
+        }
+    }
+
     const recentExpenses = todayExpenses
     const categoriesWithTotals = categorySummary.map(item => ({
         name: item.category,
@@ -603,7 +654,7 @@ function Dashboard_2() {
 
     // Calculate total assigned budget (future income)
     const totalAssignedBudget = employees.reduce((sum, emp) => sum + (parseFloat(emp.assigned_amount) || 0), 0)
-    
+
     // Calculate total upcoming income (only pending, not received)
     const totalUpcomingIncome = incomes.filter(inc => inc.status === 'Pending').reduce((sum, inc) => sum + (parseFloat(inc.amount) || 0), 0)
 
@@ -667,8 +718,8 @@ function Dashboard_2() {
                         </div>
                     </div>
                     <div className="col-6">
-                        <div 
-                            className="card border-0 shadow-sm h-100" 
+                        <div
+                            className="card border-0 shadow-sm h-100"
                             style={{ borderRadius: '24px', backgroundColor: '#F2F2F2', cursor: 'pointer' }}
                             onClick={() => setShowIncomeModal(true)}
                         >
@@ -713,7 +764,7 @@ function Dashboard_2() {
                     </div>
                 </div>
 
-                
+
 
                 {/* AI Expense Input */}
                 <div className="mt-3">
@@ -768,7 +819,7 @@ function Dashboard_2() {
                         <div className="flex-grow-1" style={{ minWidth: 0, flex: 1 }}>
                             <div className="d-flex justify-content-between align-items-center mb-3">
                                 <h6 className="fw-bold mb-0 text-dark" style={{ fontSize: '16px' }}>Upcoming Incomes</h6>
-                                <button 
+                                <button
                                     className="btn btn-dark btn-sm d-flex align-items-center gap-1"
                                     onClick={() => setShowIncomeModal(true)}
                                     style={{ borderRadius: '12px', padding: '4px 12px', fontSize: '12px' }}
@@ -779,20 +830,20 @@ function Dashboard_2() {
                             {incomes.filter(inc => inc.status === 'Pending').length === 0 ? (
                                 <div className="card border-0 shadow-sm" style={{ borderRadius: '16px', backgroundColor: 'rgba(255, 255, 255, 0.9)', minHeight: '100px' }}>
                                     <div className="card-body d-flex align-items-center justify-content-center">
-                                        <p className="text-muted mb-0">No upcoming income scheduled</p>
+                                        <p className="text-muted mb-0">No upcoming income </p>
                                     </div>
                                 </div>
                             ) : (
-                                <div 
+                                <div
                                     className="d-flex gap-2 overflow-auto"
-                                    style={{ 
+                                    style={{
                                         scrollBehavior: 'smooth',
                                         paddingBottom: '5px'
                                     }}
                                 >
                                     {incomes.filter(inc => inc.status === 'Pending').map(inc => (
-                                        <div key={inc.id} className="card border-0 shadow-sm flex-shrink-0" style={{ 
-                                            borderRadius: '16px', 
+                                        <div key={inc.id} className="card border-0 shadow-sm flex-shrink-0" style={{
+                                            borderRadius: '16px',
                                             backgroundColor: 'rgba(255, 255, 255, 0.9)',
                                             width: '140px',
                                             minHeight: '100px'
@@ -824,8 +875,8 @@ function Dashboard_2() {
                         </div>
 
                         {/* Vertical Divider */}
-                        <div style={{ 
-                            width: '1px', 
+                        <div style={{
+                            width: '1px',
                             backgroundColor: 'black',
                             minHeight: '150px',
                             alignSelf: 'stretch'
@@ -835,12 +886,12 @@ function Dashboard_2() {
                         <div className="flex-grow-1" style={{ minWidth: 0, flex: 1 }}>
                             <div className="d-flex justify-content-between align-items-center mb-3">
                                 <h6 className="fw-bold mb-0 text-dark" style={{ fontSize: '16px' }}>Upcoming Expenses</h6>
-                                <button 
+                                <button
                                     className="btn btn-dark btn-sm d-flex align-items-center gap-1"
                                     onClick={() => setShowFutureExpenseModal(true)}
                                     style={{ borderRadius: '12px', padding: '4px 12px', fontSize: '12px' }}
                                 >
-                                    <PlusCircle size={14} /> Add 
+                                    <PlusCircle size={14} /> Add
                                 </button>
                             </div>
                             {futureExpenses.filter(exp => exp.status === 'Planned').length === 0 ? (
@@ -850,16 +901,16 @@ function Dashboard_2() {
                                     </div>
                                 </div>
                             ) : (
-                                <div 
+                                <div
                                     className="d-flex gap-2 overflow-auto"
-                                    style={{ 
+                                    style={{
                                         scrollBehavior: 'smooth',
                                         paddingBottom: '5px'
                                     }}
                                 >
                                     {futureExpenses.filter(exp => exp.status === 'Planned').map(exp => (
-                                        <div key={exp.id} className="card border-0 shadow-sm flex-shrink-0" style={{ 
-                                            borderRadius: '16px', 
+                                        <div key={exp.id} className="card border-0 shadow-sm flex-shrink-0" style={{
+                                            borderRadius: '16px',
                                             backgroundColor: 'rgba(255, 255, 255, 0.9)',
                                             width: '140px',
                                             minHeight: '100px'
@@ -890,7 +941,7 @@ function Dashboard_2() {
                             )}
                         </div>
                     </div>
-                    
+
                     {/* Custom Scrollbar Styles */}
                     <style>{`
                         .card::-webkit-scrollbar {
@@ -922,7 +973,7 @@ function Dashboard_2() {
                         <h5 className="fw-bold mb-0 text-white">Recent Transactions</h5>
                         <input
                             type="text"
-                            className="form-control form-control-sm"
+                            className=""
                             placeholder="Search transactions..."
                             value={transactionSearch}
                             onChange={(e) => setTransactionSearch(e.target.value)}
@@ -931,18 +982,20 @@ function Dashboard_2() {
                                 borderRadius: '12px',
                                 backgroundColor: '#1A1A1A',
                                 border: '1px solid #333',
-                                color: '#fff'
+                                color: '#fff',
+                                textAlign: 'center'
                             }}
                         />
                     </div>
 
                     {/* Scrollable container for more than 3 transactions */}
                     <div
-                        className="card border-0 shadow"
+                        className="card border-0 shadow transactions-container"
                         style={{
                             borderRadius: '24px',
-                            height: '300px',
-                            overflowY: 'scroll',
+                            maxHeight: '400px',
+                            height: 'auto',
+                            overflowY: 'auto',
                             overflowX: 'hidden',
                             paddingRight: '5px',
                             position: 'relative',
@@ -969,7 +1022,7 @@ function Dashboard_2() {
           background: #555;
         }
       `}</style>
-                        <div style={{ minHeight: '100%' }}>
+                        <div>
                             {(() => {
                                 // Filter transactions based on search
                                 const filteredExpenses = expensesToShow.filter(expense =>
@@ -979,9 +1032,9 @@ function Dashboard_2() {
 
                                 if (filteredExpenses.length === 0) {
                                     return transactionSearch ? (
-                                        <p className="text-muted text-center py-4">No matching transactions found.</p>
+                                        <p className="text-white text-center py-4">No matching transactions found.</p>
                                     ) : (
-                                        <p className="text-muted text-center py-4">No transactions found.</p>
+                                        <p className="text-white text-center py-4">No transactions found.</p>
                                     );
                                 }
 
@@ -1022,33 +1075,42 @@ function Dashboard_2() {
                 </div>
 
                 {/* Limit Card */}
+                <div className="d-flex justify-content-between align-items-center mb-2">
+                    <h5 className="fw-bold mb-0 text-white">Monthly Limit</h5>
+                    <button
+                        className="btn btn-link text-decoration-none p-0 small"
+                        style={{ color: '#F5E04C', fontSize: '12px' }}
+                        onClick={() => setShowLimitModal(true)}
+                    >
+                        Want to add monthly limit?
+                    </button>
+                </div>
                 <div className="card border-0 shadow mb-4" style={{
                     borderRadius: '24px',
                     background: 'linear-gradient(135deg, #7BE26B 0%, #5CB85C 100%)'
                 }}>
                     <div className="card-body p-4">
-                        <h5 className="fw-bold mb-3 text-dark">Monthly Limit</h5>
                         <div className="text-center mb-3">
                             {/* Simple gauge visualization */}
                             <div className="position-relative d-inline-block">
                                 <svg width="120" height="60" viewBox="0 0 120 60">
                                     <path d="M 10 50 A 40 40 0 0 1 110 50" fill="none" stroke="#0F0F0F" strokeWidth="12" strokeLinecap="round" opacity="0.3" />
                                     <path d="M 10 50 A 40 40 0 0 1 110 50" fill="none" stroke="#0F0F0F" strokeWidth="12" strokeLinecap="round"
-                                        strokeDasharray={`${(budgetStatus.reduce((sum, item) => sum + item.spent, 0) / budgetStatus.reduce((sum, item) => sum + item.allocated, 0)) * 126} 126`}
+                                        strokeDasharray={`${(monthlyLimit > 0 ? Math.min(1, monthTransactions.reduce((sum, item) => sum + parseFloat(item.amount), 0) / monthlyLimit) : 0) * 126} 126`}
                                     />
                                 </svg>
                                 <div className="position-absolute top-50 start-50 translate-middle text-center">
                                     <span className="fw-bold" style={{ fontSize: '16px' }}>
-                                        {Math.round((budgetStatus.reduce((sum, item) => sum + item.spent, 0) / budgetStatus.reduce((sum, item) => sum + item.allocated, 0)) * 100) || 0}%
+                                        {monthlyLimit > 0 ? Math.round((monthTransactions.reduce((sum, item) => sum + parseFloat(item.amount), 0) / monthlyLimit) * 100) : 0}%
                                     </span>
                                 </div>
                             </div>
                         </div>
                         <div className="text-center">
                             <p className="mb-0 fw-bold text-dark" style={{ fontSize: '20px' }}>
-                                Rs. {budgetStatus.reduce((sum, item) => sum + item.spent, 0).toLocaleString('en-PK')} / {budgetStatus.reduce((sum, item) => sum + item.allocated, 0).toLocaleString('en-PK')}
+                                Rs. {monthTransactions.reduce((sum, item) => sum + parseFloat(item.amount), 0).toLocaleString('en-PK')} / {monthlyLimit.toLocaleString('en-PK')}
                             </p>
-                            <p className="mb-0 small text-dark" style={{ opacity: 0.8 }}>Total Spent / Total Budget</p>
+                            <p className="mb-0 small text-dark" style={{ opacity: 0.8 }}>Month Spent / Monthly Limit</p>
                         </div>
                     </div>
                 </div>
@@ -1071,7 +1133,11 @@ function Dashboard_2() {
                 {/* Action Cards */}
                 <div className="row g-3 mb-4">
                     <div className="col-6">
-                        <div className="card border-0 shadow" style={{ borderRadius: '24px', backgroundColor: '#F5E04C' }}>
+                        <div
+                            className="card border-0 shadow"
+                            style={{ borderRadius: '24px', backgroundColor: '#F5E04C', cursor: 'pointer' }}
+                            onClick={() => setShowQrModal(true)}
+                        >
                             <div className="card-body p-4 text-center">
                                 <QrCode size={32} className="text-dark mb-2" />
                                 <p className="mb-0 fw-bold text-dark small">QR Code</p>
@@ -1079,12 +1145,21 @@ function Dashboard_2() {
                         </div>
                     </div>
                     <div className="col-6">
-                        <div className="card border-0 shadow" style={{ borderRadius: '24px', backgroundColor: '#7BE26B' }}>
+                        <div
+                            className="card border-0 shadow"
+                            style={{ borderRadius: '24px', backgroundColor: '#7BE26B', cursor: 'pointer' }}
+                            onClick={handleShare}
+                        >
                             <div className="card-body p-4 text-center">
                                 <Share2 size={32} className="text-dark mb-2" />
                                 <p className="mb-0 fw-bold text-dark small">Share Link</p>
                             </div>
                         </div>
+                        {shareMessage && (
+                            <div className="text-center mt-2 small fw-bold text-success">
+                                {shareMessage}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -1275,15 +1350,15 @@ function Dashboard_2() {
                                 <form onSubmit={handleAddIncome}>
                                     <div className="mb-3">
                                         <label className="form-label text-muted small">Source/Title</label>
-                                        <input type="text" className="form-control" placeholder="e.g. Salary, Freelance" value={incomeForm.source} onChange={e => setIncomeForm({...incomeForm, source: e.target.value})} required />
+                                        <input type="text" className="form-control" placeholder="e.g. Salary, Freelance" value={incomeForm.source} onChange={e => setIncomeForm({ ...incomeForm, source: e.target.value })} required />
                                     </div>
                                     <div className="mb-3">
                                         <label className="form-label text-muted small">Amount (Rs.)</label>
-                                        <input type="number" className="form-control" placeholder="e.g. 50000" min="1" step="0.01" value={incomeForm.amount} onChange={e => setIncomeForm({...incomeForm, amount: e.target.value})} required />
+                                        <input type="number" className="form-control" placeholder="e.g. 50000" min="1" step="0.01" value={incomeForm.amount} onChange={e => setIncomeForm({ ...incomeForm, amount: e.target.value })} required />
                                     </div>
                                     <div className="mb-4">
                                         <label className="form-label text-muted small">Expected Date</label>
-                                        <input type="date" className="form-control" value={incomeForm.expected_date} onChange={e => setIncomeForm({...incomeForm, expected_date: e.target.value})} required />
+                                        <input type="date" className="form-control" value={incomeForm.expected_date} onChange={e => setIncomeForm({ ...incomeForm, expected_date: e.target.value })} required />
                                     </div>
                                     <button type="submit" className="btn btn-dark w-100 mb-2" style={{ borderRadius: '16px' }}>Save Income</button>
                                 </form>
@@ -1307,15 +1382,15 @@ function Dashboard_2() {
                                 <form onSubmit={handleAddFutureExpense}>
                                     <div className="mb-3">
                                         <label className="form-label text-muted small">Description</label>
-                                        <input type="text" className="form-control" placeholder="e.g. Electric Bill, Rent" value={futureExpenseForm.title} onChange={e => setFutureExpenseForm({...futureExpenseForm, title: e.target.value})} required />
+                                        <input type="text" className="form-control" placeholder="e.g. Electric Bill, Rent" value={futureExpenseForm.title} onChange={e => setFutureExpenseForm({ ...futureExpenseForm, title: e.target.value })} required />
                                     </div>
                                     <div className="mb-3">
                                         <label className="form-label text-muted small">Amount (Rs.)</label>
-                                        <input type="number" className="form-control" placeholder="e.g. 15000" min="1" step="0.01" value={futureExpenseForm.amount} onChange={e => setFutureExpenseForm({...futureExpenseForm, amount: e.target.value})} required />
+                                        <input type="number" className="form-control" placeholder="e.g. 15000" min="1" step="0.01" value={futureExpenseForm.amount} onChange={e => setFutureExpenseForm({ ...futureExpenseForm, amount: e.target.value })} required />
                                     </div>
                                     <div className="mb-4">
                                         <label className="form-label text-muted small">Expected Date</label>
-                                        <input type="date" className="form-control" value={futureExpenseForm.expected_date} onChange={e => setFutureExpenseForm({...futureExpenseForm, expected_date: e.target.value})} required />
+                                        <input type="date" className="form-control" value={futureExpenseForm.expected_date} onChange={e => setFutureExpenseForm({ ...futureExpenseForm, expected_date: e.target.value })} required />
                                     </div>
                                     <button type="submit" className="btn btn-dark w-100 mb-2" style={{ borderRadius: '16px' }}>Save Plan</button>
                                 </form>
@@ -1339,8 +1414,8 @@ function Dashboard_2() {
                                 <h5 className="fw-bold mb-2">Mark as Received?</h5>
                                 <p className="text-muted small mb-4">Are you sure you want to mark this income as received? This will increase your balance.</p>
                                 <div className="d-flex gap-2">
-                                    <button 
-                                        className="btn btn-light flex-grow-1" 
+                                    <button
+                                        className="btn btn-light flex-grow-1"
                                         onClick={() => {
                                             setShowConfirmIncomeModal(false)
                                             setSelectedIncomeId(null)
@@ -1349,8 +1424,8 @@ function Dashboard_2() {
                                     >
                                         Cancel
                                     </button>
-                                    <button 
-                                        className="btn btn-success flex-grow-1" 
+                                    <button
+                                        className="btn btn-success flex-grow-1"
                                         onClick={confirmReceiveIncome}
                                         style={{ borderRadius: '12px' }}
                                     >
@@ -1377,8 +1452,8 @@ function Dashboard_2() {
                                 <h5 className="fw-bold mb-2">Confirm Expense?</h5>
                                 <p className="text-muted small mb-4">This expense will be deducted from your balance and moved to actual expenses.</p>
                                 <div className="d-flex gap-2">
-                                    <button 
-                                        className="btn btn-light flex-grow-1" 
+                                    <button
+                                        className="btn btn-light flex-grow-1"
                                         onClick={() => {
                                             setShowConfirmExpenseModal(false)
                                             setSelectedExpenseId(null)
@@ -1387,8 +1462,8 @@ function Dashboard_2() {
                                     >
                                         Cancel
                                     </button>
-                                    <button 
-                                        className="btn btn-danger flex-grow-1" 
+                                    <button
+                                        className="btn btn-danger flex-grow-1"
                                         onClick={confirmFutureExpense}
                                         style={{ borderRadius: '12px' }}
                                     >
@@ -1401,7 +1476,64 @@ function Dashboard_2() {
                 </div>
             )}
 
+            {/* Monthly Limit Modal */}
+            {showLimitModal && (
+                <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+                    <div className="modal-dialog modal-dialog-centered modal-sm">
+                        <div className="modal-content border-0 shadow" style={{ borderRadius: '24px' }}>
+                            <div className="modal-header border-0 pb-0">
+                                <h5 className="modal-title fw-bold">Set Monthly Limit</h5>
+                                <button type="button" className="btn-close" onClick={() => setShowLimitModal(false)}></button>
+                            </div>
+                            <div className="modal-body">
+                                {limitMessage && <div className={`alert py-2 ${limitMessage.includes('✅') ? 'alert-success' : 'alert-warning'}`}>{limitMessage}</div>}
+                                <form onSubmit={handleUpdateMonthlyLimit}>
+                                    <div className="mb-3">
+                                        <label className="form-label text-muted small">Limit Amount (Rs.)</label>
+                                        <input
+                                            type="number"
+                                            className="form-control"
+                                            placeholder="e.g. 50000"
+                                            min="0"
+                                            step="0.01"
+                                            value={limitAmount}
+                                            onChange={e => setLimitAmount(e.target.value)}
+                                            required
+                                        />
+                                    </div>
+                                    <button type="submit" className="btn btn-dark w-100 mb-2" style={{ borderRadius: '16px' }}>Update Limit</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* QR Code Modal */}
+            {showQrModal && (
+                <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1060 }}>
+                    <div className="modal-dialog modal-dialog-centered">
+                        <div className="modal-content border-0 shadow" style={{ borderRadius: '24px', backgroundColor: '#FFF' }}>
+                            <div className="modal-header border-0 pb-0">
+                                <h5 className="modal-title fw-bold">Scan QR Code</h5>
+                                <button type="button" className="btn-close" onClick={() => setShowQrModal(false)}></button>
+                            </div>
+                            <div className="modal-body text-center p-4">
+                                <div className="bg-light p-3 rounded-4 mb-3 d-inline-block">
+                                    <img
+                                        src="/app-qr-code.png"
+                                        alt="App QR Code"
+                                        style={{ width: '100%', maxWidth: '250px', height: 'auto', display: 'block' }}
+                                    />
+                                </div>
+                                <p className="text-muted small mb-0">Scan this QR code with your phone to open the app.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
+
     )
 }
 

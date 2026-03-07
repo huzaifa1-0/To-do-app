@@ -22,6 +22,7 @@ class User(AbstractUser):
     email = models.EmailField(unique=True)
     assigned_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     total_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    monthly_limit = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     employer = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='employees')
 
     USERNAME_FIELD = 'email'

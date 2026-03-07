@@ -149,6 +149,7 @@ class TodayExpenseTotalView(APIView):
         return Response({
             "today_total": total_amount,
             "total_balance": request.user.total_balance,
+            "monthly_limit": request.user.monthly_limit,
             "currency": "PKR"
         })
 
@@ -363,4 +364,29 @@ class FutureExpenseViewSet(viewsets.ModelViewSet):
         return Response({
             "message": "Future expense confirmed, recorded as reality, and balance updated.", 
             "new_balance": user.total_balance
+        })
+
+# 9️⃣ Update Monthly Limit View
+class UpdateMonthlyLimitView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        limit_amount = request.data.get('monthly_limit')
+        if limit_amount is None:
+            return Response({"error": "monthly_limit is required"}, status=400)
+        
+        try:
+            limit = Decimal(str(limit_amount))
+            if limit < 0:
+                return Response({"error": "Limit cannot be negative"}, status=400)
+        except (InvalidOperation, TypeError, ValueError):
+            return Response({"error": "Invalid limit amount"}, status=400)
+            
+        user = request.user
+        user.monthly_limit = limit
+        user.save(update_fields=['monthly_limit'])
+        
+        return Response({
+            "message": "Monthly limit updated successfully.",
+            "monthly_limit": user.monthly_limit
         })
