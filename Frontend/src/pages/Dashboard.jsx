@@ -17,6 +17,8 @@ function Dashboard() {
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [viewMode, setViewMode] = useState('recent') // 'recent', 'categories', 'category-expenses', 'employees'
   const [employees, setEmployees] = useState([])
+  const [showLimitModal, setShowLimitModal] = useState(false)
+  const [monthlyLimitInput, setMonthlyLimitInput] = useState(0)
   
   // Finance States
   const [totalBalance, setTotalBalance] = useState(0)
@@ -28,9 +30,10 @@ function Dashboard() {
   const [incomeForm, setIncomeForm] = useState({ source: '', amount: '', expected_date: '' })
   const [incomeMessage, setIncomeMessage] = useState('')
   
-  const [showFutureExpenseModal, setShowFutureExpenseModal] = useState(false)
   const [futureExpenseForm, setFutureExpenseForm] = useState({ title: '', amount: '', expected_date: '' })
   const [futureExpenseMessage, setFutureExpenseMessage] = useState('')
+  const [incomeWarning, setIncomeWarning] = useState('')
+  const [limitError, setLimitError] = useState('')
 
   // Modal states
   const [showInviteModal, setShowInviteModal] = useState(false)
@@ -131,6 +134,13 @@ function Dashboard() {
         const totalData = await totalRes.json()
         setTotalExpenses(totalData.today_total || 0)
         setTotalBalance(parseFloat(totalData.total_balance) || 0)
+        const limit = parseFloat(totalData.monthly_limit) || 0;
+        setMonthlyLimitInput(limit);
+        
+        // Simple alert for exceeding limit
+        if (limit > 0 && (totalData.today_total || 0) > limit) {
+           alert(`⚠️ Warning: You have exceeded your monthly spending limit of Rs. ${limit}!`);
+        }
 
         // Fetch all expenses
         const expensesRes = await fetch(`${API_BASE_URL}`, {
@@ -481,9 +491,28 @@ function Dashboard() {
     }
   }
 
-  // --- Finance Handlers ---
+  const handleIncomeChange = (e) => {
+    const { name, value } = e.target;
+    setIncomeForm(prev => ({ ...prev, [name]: value }));
+    if (name === 'amount' && parseFloat(value) > 100000) {
+      setIncomeWarning('⚠️ High value income detected!');
+    } else if (name === 'amount') {
+      setIncomeWarning('');
+    }
+  };
+
   const handleAddIncome = async (e) => {
     e.preventDefault()
+
+    // Date Validation
+    const selectedDate = new Date(incomeForm.expected_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (selectedDate < today) {
+      setIncomeMessage('⚠️ Date cannot be in the past.');
+      return;
+    }
+
     setIncomeMessage('Adding...')
     try {
       const accessToken = localStorage.getItem('access_token')
@@ -529,6 +558,16 @@ function Dashboard() {
 
   const handleAddFutureExpense = async (e) => {
     e.preventDefault()
+
+    // Date Validation
+    const selectedDate = new Date(futureExpenseForm.expected_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (selectedDate < today) {
+      setFutureExpenseMessage('⚠️ Date cannot be in the past.');
+      return;
+    }
+
     setFutureExpenseMessage('Adding...')
     try {
       const accessToken = localStorage.getItem('access_token')
@@ -709,6 +748,58 @@ function Dashboard() {
                 )}
               </div>
             </div>
+
+            <div className="mt-3 text-white">
+               <button className="btn btn-sm btn-outline-light rounded-pill" onClick={() => setShowLimitModal(true)}>
+                  Set Monthly Limit
+               </button>
+            </div>
+
+            {showLimitModal && (
+                <div className="modal d-block" style={{backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1100}}>
+                   <div className="modal-dialog modal-dialog-centered">
+                      <div className="modal-content text-dark p-3">
+                         <h5 className="fw-bold">Set Monthly Spending Limit</h5>
+                         <input 
+                            type="number" 
+                            className={`form-control ${limitError ? 'is-invalid' : ''}`}
+                            step="1"
+                            value={monthlyLimitInput} 
+                            onChange={(e) => {
+                               const val = e.target.value;
+                               setMonthlyLimitInput(val);
+                               if (parseFloat(val) <= 0) {
+                                  setLimitError('Limit must be greater than 0');
+                               } else if (!Number.isInteger(Number(val))) {
+                                  setLimitError('Limit must be a round number');
+                               } else {
+                                  setLimitError('');
+                               }
+                            }}
+                         />
+                         {limitError && <div className="invalid-feedback">{limitError}</div>}
+                         <div className="mt-3 d-flex gap-2">
+                            <button className="btn btn-primary" disabled={limitError !== '' || !monthlyLimitInput} onClick={async () => {
+                                const accessToken = localStorage.getItem('access_token');
+                                const res = await fetch(`${BASE_URL}/expenses/update-monthly-limit/`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${accessToken}` },
+                                    body: JSON.stringify({ monthly_limit: monthlyLimitInput })
+                                });
+                                if (res.ok) {
+                                   setShowLimitModal(false);
+                                   window.location.reload(); // Refresh to update status
+                                } else {
+                                   const d = await res.json();
+                                   setLimitError(d.error || 'Failed to update');
+                                }
+                            }}>Save</button>
+                            <button className="btn btn-secondary" onClick={() => setShowLimitModal(false)}>Cancel</button>
+                         </div>
+                      </div>
+                   </div>
+                </div>
+            )}
 
             <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-4 text-white">
               <div className="d-flex align-items-center gap-3">
@@ -1227,13 +1318,14 @@ function Dashboard() {
               <div className="modal-body">
                 {incomeMessage && <div className={`alert py-2 ${incomeMessage.includes('✅') ? 'alert-success' : 'alert-warning'}`}>{incomeMessage}</div>}
                 <form onSubmit={handleAddIncome}>
+                  {incomeWarning && <div className="text-warning small mb-2 fw-bold">{incomeWarning}</div>}
                   <div className="mb-3">
                     <label className="form-label text-muted small">Source/Title</label>
                     <input type="text" className="form-control" placeholder="e.g. Salary, Freelance" value={incomeForm.source} onChange={e => setIncomeForm({...incomeForm, source: e.target.value})} required />
                   </div>
                   <div className="mb-3">
                     <label className="form-label text-muted small">Amount (Rs.)</label>
-                    <input type="number" className="form-control" placeholder="e.g. 50000" min="1" step="0.01" value={incomeForm.amount} onChange={e => setIncomeForm({...incomeForm, amount: e.target.value})} required />
+                    <input type="number" className="form-control" placeholder="e.g. 50000" min="1" step="0.01" name="amount" value={incomeForm.amount} onChange={handleIncomeChange} required />
                   </div>
                   <div className="mb-4">
                     <label className="form-label text-muted small">Expected Date</label>

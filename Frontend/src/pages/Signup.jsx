@@ -37,9 +37,13 @@ function Signup() {
   }
 
   const handleChange = (e) => {
+    const { name, value } = e.target;
+    if ((name === 'firstName' || name === 'lastName') && value !== '' && !/^[a-zA-Z]*$/.test(value)) {
+      return; // Reject non-alphabetic characters
+    }
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [name]: value
     })
   }
 
@@ -47,6 +51,14 @@ function Signup() {
     e.preventDefault()
     setLoading(true)
     setError('')
+    
+    // Email Validation
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9-]{2,}(\.[a-zA-Z0-9-]{2,})+$/;
+    if (!emailRegex.test(formData.email)) {
+      setError('Please enter a valid email address (e.g., name@gmail.com). Small domains like "g.com" are not allowed.')
+      setLoading(false)
+      return
+    }
 
     try {
       const response = await fetch(`${API_BASE_URL}/register/`, {
@@ -181,25 +193,11 @@ function Signup() {
                         value={formData.lastName}
                         onChange={handleChange}
                         placeholder="Doe"
+                        required
                       />
                     </div>
                   </div>
 
-                  <div className="mb-3">
-                    <label htmlFor="currentIncome" className="form-label">Current Income / Initial Balance (Rs.)</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      id="currentIncome"
-                      name="currentIncome"
-                      value={formData.currentIncome}
-                      onChange={handleChange}
-                      placeholder="e.g. 50000"
-                      min="0"
-                      step="0.01"
-                    />
-                    <div className="form-text small text-muted">This will be your starting balance. (Optional)</div>
-                  </div>
 
                   <div className="mb-3">
                     <label htmlFor="email" className="form-label">Email Address</label>
@@ -278,6 +276,23 @@ function Signup() {
                     </div>
                   </div>
 
+                    <div className="mb-3">
+                      <label htmlFor="currentIncome" className="form-label">Current Income / Initial Balance (Rs.)</label>
+                      <input
+                        type="number"
+                        className="form-control"
+                        id="currentIncome"
+                        name="currentIncome"
+                        value={formData.currentIncome}
+                        onChange={handleChange}
+                        placeholder="e.g. 50000"
+                        min="0"
+                        step="0.01"
+                        required
+                      />
+                      <div className="form-text small text-muted">This will be your starting balance. (Required)</div>
+                    </div>
+
                   <button
                     type="submit"
                     className="btn btn-primary w-100 mb-3"
@@ -289,7 +304,7 @@ function Signup() {
                   <div className="text-center">
                     <p className="mb-0 text-muted">
                       Already have an account?{' '}
-                      <Link to={inviteToken ? `/login?invite_token=${inviteToken}` : "/login"} className="text-primary text-decoration-none fw-bold">
+                      <Link to="/login" className="text-primary text-decoration-none fw-bold">
                         Sign In
                       </Link>
                     </p>

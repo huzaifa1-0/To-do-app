@@ -3,12 +3,14 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_decode
+from .validators import validate_email_strict
 
 User = get_user_model()
 
 class RegisterSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(validators=[validate_email_strict])
     confirm_password = serializers.CharField(write_only=True)
-    current_income = serializers.DecimalField(max_digits=12, decimal_places=2, write_only=True, required=False, default=0.00)
+    current_income = serializers.DecimalField(max_digits=12, decimal_places=2, write_only=True, required=True)
 
     class Meta:
         model = User
@@ -17,7 +19,19 @@ class RegisterSerializer(serializers.ModelSerializer):
             'password': {'write_only': True}
         }
 
+    def validate_first_name(self, value):
+        if not value.isalpha():
+            raise serializers.ValidationError("First name must contain only alphabetic characters.")
+        return value
+
+    def validate_last_name(self, value):
+        if not value.isalpha():
+            raise serializers.ValidationError("Last name must contain only alphabetic characters.")
+        return value
+
     def validate(self, attrs):
+        if not attrs.get('last_name'):
+             raise serializers.ValidationError({"last_name": "Last name is strictly required."})
         if attrs['password'] != attrs['confirm_password']:
             raise serializers.ValidationError({"password": "Password fields didn't match."})
         validate_password(attrs['password'])

@@ -36,9 +36,10 @@ function Login() {
         // Store tokens
         localStorage.setItem('access_token', data.access)
         localStorage.setItem('refresh_token', data.refresh)
+        localStorage.setItem('session_token', data.session_token) // Store session token
         localStorage.setItem('user', JSON.stringify({
           email: email,
-          first_name: email.split('@')[0] || 'User'
+          first_name: data.user?.first_name || email.split('@')[0] || 'User'
         }))
 
         // Redirect to dashboard

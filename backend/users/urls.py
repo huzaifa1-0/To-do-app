@@ -3,13 +3,14 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from .views import (
     RegisterView, PasswordResetRequestView, PasswordResetVerifyView, PasswordResetConfirmView,
-    InviteEmployeeView, AcceptInvitationView, EmployeeListView, AssignMoneyView
+    InviteEmployeeView, AcceptInvitationView, EmployeeListView, AssignMoneyView,
+    CustomTokenObtainPairView
 )
 
 urlpatterns = [
     # Auth Endpoints
     path('register/', RegisterView.as_view(), name='register'),
-    path('login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('login/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     
     # Password Reset Flow

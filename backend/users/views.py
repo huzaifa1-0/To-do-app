@@ -14,6 +14,9 @@ from .serializers import (
     PasswordResetRequestSerializer, PasswordResetVerifySerializer, PasswordResetConfirmSerializer,
     EmployeeSerializer, InvitationSerializer
 )
+from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+import uuid
 
 User = get_user_model()
 
@@ -22,6 +25,34 @@ class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     permission_classes = (AllowAny,)
     serializer_class = RegisterSerializer
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        email = attrs.get("email")
+        if email:
+            import re
+            email_regex = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+            if not re.match(email_regex, email):
+                raise serializers.ValidationError("Incorrect email format.")
+        
+        user = User.objects.filter(email=email).first()
+        if user and not user.is_active:
+             raise serializers.ValidationError("This account is inactive.")
+        if not user:
+             raise serializers.ValidationError("Account does not exist.")
+
+        data = super().validate(attrs)
+        
+        # Session Management: Generate a new session token on login
+        session_token = str(uuid.uuid4())
+        self.user.session_token = session_token
+        self.user.save(update_fields=['session_token'])
+        
+        data['session_token'] = session_token
+        return data
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
 
 import random
 from .models import PasswordResetOTP

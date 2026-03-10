@@ -1,6 +1,8 @@
 from django.db import models
 from django.conf import settings
 from django.core.exceptions import ValidationError
+import re
+import datetime
 
 class Category(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -39,6 +41,17 @@ class Expense(models.Model):
         related_name="expenses"
     )
 
+    def clean_description(self):
+        if self.description:
+            # Simple sanitization: remove common script injection patterns
+            self.description = re.sub(r'<script.*?>.*?</script>', '', self.description, flags=re.IGNORECASE)
+            self.description = re.sub(r'on\w+=".*?"', '', self.description, flags=re.IGNORECASE)
+        return self.description
+
+    def save(self, *args, **kwargs):
+        self.clean_description()
+        super().save(*args, **kwargs)
+
     # Temporary choices until migration logic is settled, 
     # but we will transition to ForeignKey to Category
     category_name = models.CharField(max_length=50, blank=True, null=True) 
@@ -74,6 +87,18 @@ class Income(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def clean(self):
+        super().clean()
+        if self.expected_date:
+            if self.expected_date.year < 2000 or self.expected_date.year > 2100:
+                raise ValidationError("Please select a valid year between 2000 and 2100.")
+            if self.status == 'Pending' and self.expected_date < datetime.date.today():
+                raise ValidationError("Upcoming income date cannot be in the past.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.source} - {self.amount} - {self.status}"
 
@@ -92,6 +117,18 @@ class FutureExpense(models.Model):
     expected_date = models.DateField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Planned')
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def clean(self):
+        super().clean()
+        if self.expected_date:
+            if self.expected_date.year < 2000 or self.expected_date.year > 2100:
+                raise ValidationError("Please select a valid year between 2000 and 2100.")
+            if self.status == 'Planned' and self.expected_date < datetime.date.today():
+                raise ValidationError("Future expense date cannot be in the past.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.title} - {self.amount} - {self.status}"

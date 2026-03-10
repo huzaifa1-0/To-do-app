@@ -377,8 +377,10 @@ class UpdateMonthlyLimitView(APIView):
         
         try:
             limit = Decimal(str(limit_amount))
-            if limit < 0:
-                return Response({"error": "Limit cannot be negative"}, status=400)
+            if limit <= 0:
+                return Response({"error": "Limit must be greater than 0"}, status=400)
+            if limit % 1 != 0:
+                return Response({"error": "Limit must be a round number"}, status=400)
         except (InvalidOperation, TypeError, ValueError):
             return Response({"error": "Invalid limit amount"}, status=400)
             

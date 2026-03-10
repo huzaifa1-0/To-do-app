@@ -16,7 +16,9 @@ import {
     QrCode,
     Settings,
     Bell,
-    CreditCard
+    CreditCard,
+    MoreVertical,
+    Filter
 } from 'lucide-react'
 import 'bootstrap/dist/css/bootstrap.min.css'
 import { API_BASE_URL as BASE_URL } from '../api/config'
@@ -49,6 +51,9 @@ function Dashboard_2() {
     const [assignMessage, setAssignMessage] = useState('')
     const [searchInput, setSearchInput] = useState('')
     const [transactionSearch, setTransactionSearch] = useState('')
+    const [transactionFilter, setTransactionFilter] = useState('recent') // 'recent', 'today', 'week', 'month', 'custom'
+    const [selectedFilterDate, setSelectedFilterDate] = useState('')
+    const [showFilterDropdown, setShowFilterDropdown] = useState(false)
     const [currentUser, setCurrentUser] = useState(null)
 
     // Income tracking states
@@ -294,38 +299,49 @@ function Dashboard_2() {
         }
     }
 
-    // Fetch today's expenses when in recent mode
+    // Fetch transactions based on filter
     useEffect(() => {
         if (viewMode === 'recent') {
-            const fetchTodayExpenses = async () => {
+            const fetchFilteredExpenses = async () => {
                 try {
+                    setLoadingExpenses(true)
                     const accessToken = localStorage.getItem('access_token')
                     const authHeaders = {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${accessToken}`
                     }
 
-                    const res = await fetch(`${API_BASE_URL}?filter=today`, {
+                    let url = `${API_BASE_URL}`
+                    
+                    if (transactionFilter === 'today') {
+                        url += '?filter=today'
+                    } else if (transactionFilter === 'week') {
+                        url += '?filter=week'
+                    } else if (transactionFilter === 'month') {
+                        url += '?filter=month'
+                    } else if (transactionFilter === 'custom' && selectedFilterDate) {
+                        url += `?start_date=${selectedFilterDate}&end_date=${selectedFilterDate}`
+                    }
+
+                    const res = await fetch(url, {
                         headers: authHeaders
                     })
                     const data = await res.json()
 
-                    if (data.length > 0) {
-                        setTodayExpenses(data.slice(0, 5))
+                    if (data && Array.isArray(data)) {
+                        setTodayExpenses(data.slice(0, 20)) // Increased slice to show more when filtered
                     } else {
-                        const allRes = await fetch(`${API_BASE_URL}`, {
-                            headers: authHeaders
-                        })
-                        const allData = await allRes.json()
-                        setTodayExpenses(allData.slice(0, 5))
+                        setTodayExpenses([])
                     }
+                    setLoadingExpenses(false)
                 } catch (error) {
-                    console.error('Error fetching today expenses:', error)
+                    console.error('Error fetching filtered expenses:', error)
+                    setLoadingExpenses(false)
                 }
             }
-            fetchTodayExpenses()
+            fetchFilteredExpenses()
         }
-    }, [viewMode])
+    }, [viewMode, transactionFilter, selectedFilterDate])
 
     // Fetch category expenses when a category is selected
     useEffect(() => {
@@ -492,6 +508,16 @@ function Dashboard_2() {
     // Income tracking handlers
     const handleAddIncome = async (e) => {
         e.preventDefault()
+
+        // Date Validation
+        const selectedDate = new Date(incomeForm.expected_date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (selectedDate < today) {
+            setIncomeMessage('⚠️ Date cannot be in the past.');
+            return;
+        }
+
         setIncomeMessage('Adding...')
         try {
             const accessToken = localStorage.getItem('access_token')
@@ -542,6 +568,16 @@ function Dashboard_2() {
 
     const handleAddFutureExpense = async (e) => {
         e.preventDefault()
+
+        // Date Validation
+        const selectedDate = new Date(futureExpenseForm.expected_date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (selectedDate < today) {
+            setFutureExpenseMessage('⚠️ Date cannot be in the past.');
+            return;
+        }
+
         setFutureExpenseMessage('Adding...')
         try {
             const accessToken = localStorage.getItem('access_token')
@@ -601,6 +637,16 @@ function Dashboard_2() {
 
     const handleUpdateMonthlyLimit = async (e) => {
         e.preventDefault()
+        
+        if (parseFloat(limitAmount) <= 0) {
+            setLimitMessage('⚠️ Limit must be greater than 0');
+            return;
+        }
+        if (!Number.isInteger(Number(limitAmount))) {
+            setLimitMessage('⚠️ Limit must be a round number');
+            return;
+        }
+
         setLimitMessage('Updating...')
         try {
             const accessToken = localStorage.getItem('access_token')
@@ -971,22 +1017,103 @@ function Dashboard_2() {
                 <div className="mt-4">
                     <div className="d-flex justify-content-between align-items-center mb-3">
                         <h5 className="fw-bold mb-0 text-white">Recent Transactions</h5>
-                        <input
-                            type="text"
-                            className=""
-                            placeholder="Search transactions..."
-                            value={transactionSearch}
-                            onChange={(e) => setTransactionSearch(e.target.value)}
-                            style={{
-                                width: '200px',
-                                borderRadius: '12px',
-                                backgroundColor: '#1A1A1A',
-                                border: '1px solid #333',
-                                color: '#fff',
-                                textAlign: 'center'
-                            }}
-                        />
+                        <div className="d-flex align-items-center gap-2 position-relative">
+                            <input
+                                type="text"
+                                className=""
+                                placeholder="Search transactions..."
+                                value={transactionSearch}
+                                onChange={(e) => setTransactionSearch(e.target.value)}
+                                style={{
+                                    width: '180px',
+                                    borderRadius: '12px',
+                                    backgroundColor: '#1A1A1A',
+                                    border: '1px solid #333',
+                                    color: '#fff',
+                                    textAlign: 'center',
+                                    height: '38px'
+                                }}
+                            />
+                            <div className="position-relative">
+                                <button 
+                                    className="btn btn-dark d-flex align-items-center justify-content-center"
+                                    onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                                    style={{ 
+                                        borderRadius: '12px', 
+                                        width: '38px', 
+                                        height: '38px',
+                                        backgroundColor: '#1A1A1A',
+                                        border: '1px solid #333'
+                                    }}
+                                >
+                                    <MoreVertical size={18} className="text-white" />
+                                </button>
+
+                                {showFilterDropdown && (
+                                    <div 
+                                        className="position-absolute end-0 mt-2 p-2 shadow-lg"
+                                        style={{ 
+                                            backgroundColor: '#1A1A1A', 
+                                            borderRadius: '12px', 
+                                            width: '180px', 
+                                            zIndex: 1000,
+                                            border: '1px solid #333'
+                                        }}
+                                    >
+                                        <button 
+                                            className="btn btn-sm text-start w-100 text-white p-2 mb-1 filter-option"
+                                            onClick={() => { setTransactionFilter('recent'); setShowFilterDropdown(false); }}
+                                            style={{ borderRadius: '8px' }}
+                                        >
+                                            All Recent
+                                        </button>
+                                        <button 
+                                            className="btn btn-sm text-start w-100 text-white p-2 mb-1 filter-option"
+                                            onClick={() => { setTransactionFilter('today'); setShowFilterDropdown(false); }}
+                                            style={{ borderRadius: '8px' }}
+                                        >
+                                            Today
+                                        </button>
+                                        <button 
+                                            className="btn btn-sm text-start w-100 text-white p-2 mb-1 filter-option"
+                                            onClick={() => { setTransactionFilter('week'); setShowFilterDropdown(false); }}
+                                            style={{ borderRadius: '8px' }}
+                                        >
+                                            This Week
+                                        </button>
+                                        <button 
+                                            className="btn btn-sm text-start w-100 text-white p-2 mb-1 filter-option"
+                                            onClick={() => { setTransactionFilter('month'); setShowFilterDropdown(false); }}
+                                            style={{ borderRadius: '8px' }}
+                                        >
+                                            This Month
+                                        </button>
+                                        <div className="border-top border-secondary my-1"></div>
+                                        <div className="p-2">
+                                            <p className="small text-muted mb-1" style={{ fontSize: '10px' }}>Select Specific Date:</p>
+                                            <input 
+                                                type="date" 
+                                                className="form-control form-control-sm bg-dark border-secondary text-white"
+                                                value={selectedFilterDate}
+                                                onChange={(e) => { 
+                                                    setSelectedFilterDate(e.target.value); 
+                                                    setTransactionFilter('custom');
+                                                    setShowFilterDropdown(false);
+                                                }}
+                                                style={{ fontSize: '12px' }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
+
+                    <style>{`
+                        .filter-option:hover {
+                            background-color: #333 !important;
+                        }
+                    `}</style>
 
                     {/* Scrollable container for more than 3 transactions */}
                     <div
@@ -1494,8 +1621,8 @@ function Dashboard_2() {
                                             type="number"
                                             className="form-control"
                                             placeholder="e.g. 50000"
-                                            min="0"
-                                            step="0.01"
+                                            min="1"
+                                            step="1"
                                             value={limitAmount}
                                             onChange={e => setLimitAmount(e.target.value)}
                                             required
