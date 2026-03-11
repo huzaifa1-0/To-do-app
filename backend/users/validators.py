@@ -2,12 +2,22 @@ import re
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext as _
 
-class UppercaseAndSpecialCharValidator:
+class ComprehensivePasswordValidator:
     def validate(self, password, user=None):
         if not re.search(r'[A-Z]', password):
             raise ValidationError(
                 _("This password must contain at least one uppercase letter."),
                 code='password_no_upper',
+            )
+        if not re.search(r'[a-z]', password):
+            raise ValidationError(
+                _("This password must contain at least one lowercase letter."),
+                code='password_no_lower',
+            )
+        if not re.search(r'\d', password):
+            raise ValidationError(
+                _("This password must contain at least one numeric digit."),
+                code='password_no_digit',
             )
         if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
             raise ValidationError(
@@ -17,17 +27,22 @@ class UppercaseAndSpecialCharValidator:
 
     def get_help_text(self):
         return _(
-            "Your password must contain at least one uppercase letter and one special character."
+            "Your password must contain at least one uppercase letter, one lowercase letter, one digit, and one special character."
         )
 
 def validate_email_strict(value):
     """
-    Validate that the email has a proper domain structure: name@domain.tld
-    Domain must be at least 2 characters long.
+    Validate that the email is a gmail address and is strictly lowercase.
     """
-    email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9-]{2,}(\.[a-zA-Z0-9-]{2,})+$'
+    if any(char.isupper() for char in value):
+        raise ValidationError(
+            _("Email must be in all lowercase letters."),
+            code='email_not_lowercase'
+        )
+        
+    email_regex = r'^[a-z0-9._%+-]+@gmail\.com$'
     if not re.match(email_regex, value):
         raise ValidationError(
-            _("Please enter a valid email address (e.g., name@gmail.com). Small domains like 'g.com' are not allowed."),
-            code='email_invalid_format'
+            _("Only Gmail addresses are allowed (e.g., name@gmail.com)."),
+            code='email_invalid_domain'
         )

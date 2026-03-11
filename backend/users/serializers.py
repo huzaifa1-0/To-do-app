@@ -10,7 +10,7 @@ User = get_user_model()
 class RegisterSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(validators=[validate_email_strict])
     confirm_password = serializers.CharField(write_only=True)
-    current_income = serializers.DecimalField(max_digits=12, decimal_places=2, write_only=True, required=True)
+    current_income = serializers.DecimalField(max_digits=12, decimal_places=2, write_only=True, required=True, min_value=0)
 
     class Meta:
         model = User
@@ -32,9 +32,22 @@ class RegisterSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         if not attrs.get('last_name'):
              raise serializers.ValidationError({"last_name": "Last name is strictly required."})
+        
+        email = attrs.get('email')
+        if User.objects.filter(email=email).exists():
+            raise serializers.ValidationError({"email": "Email is already registered. Please login instead."})
+
         if attrs['password'] != attrs['confirm_password']:
             raise serializers.ValidationError({"password": "Password fields didn't match."})
         validate_password(attrs['password'])
+        
+        current_income = attrs.get('current_income')
+        if current_income is not None:
+            if current_income < 0:
+                raise serializers.ValidationError({"current_income": "Initial income cannot be negative."})
+            if str(current_income).startswith('-'):
+                raise serializers.ValidationError({"current_income": "Initial income cannot be -0."})
+
         return attrs
 
     def create(self, validated_data):

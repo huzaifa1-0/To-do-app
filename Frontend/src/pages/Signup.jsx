@@ -41,9 +41,15 @@ function Signup() {
     if ((name === 'firstName' || name === 'lastName') && value !== '' && !/^[a-zA-Z]*$/.test(value)) {
       return; // Reject non-alphabetic characters
     }
+    
+    let processedValue = value;
+    if (name === 'email') {
+      processedValue = value.toLowerCase();
+    }
+
     setFormData({
       ...formData,
-      [name]: value
+      [name]: processedValue
     })
   }
 
@@ -52,10 +58,18 @@ function Signup() {
     setLoading(true)
     setError('')
     
-    // Email Validation
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9-]{2,}(\.[a-zA-Z0-9-]{2,})+$/;
+    // Email Validation (Strict Gmail)
+    const emailRegex = /^[a-z0-9._%+-]+@gmail\.com$/;
     if (!emailRegex.test(formData.email)) {
-      setError('Please enter a valid email address (e.g., name@gmail.com). Small domains like "g.com" are not allowed.')
+      setError('Only Gmail addresses are allowed (e.g., name@gmail.com). Small domains and other providers are not supported.')
+      setLoading(false)
+      return
+    }
+
+    // Income Validation (Prevent -0 and negatives)
+    const incomeValue = formData.currentIncome.toString().trim();
+    if (incomeValue === "-0" || parseFloat(formData.currentIncome) < 0) {
+      setError('Initial Income cannot be negative or "-0".')
       setLoading(false)
       return
     }
@@ -208,9 +222,10 @@ function Signup() {
                       name="email"
                       value={formData.email}
                       onChange={handleChange}
-                      placeholder="john@example.com"
+                      placeholder="john@gmail.com"
                       required
                     />
+                    <div className="form-text small text-muted">Only Gmail addresses are accepted.</div>
                   </div>
 
                   <div className="mb-3">
