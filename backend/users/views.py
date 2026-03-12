@@ -27,6 +27,13 @@ class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        # Add custom claims
+        token['session_token'] = user.session_token
+        return token
+
     def validate(self, attrs):
         email = attrs.get("email")
         if email:
@@ -41,12 +48,12 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         if not user:
              raise serializers.ValidationError("Account does not exist.")
 
-        data = super().validate(attrs)
-        
         # Session Management: Generate a new session token on login
         session_token = str(uuid.uuid4())
-        self.user.session_token = session_token
-        self.user.save(update_fields=['session_token'])
+        user.session_token = session_token
+        user.save(update_fields=['session_token'])
+
+        data = super().validate(attrs)
         
         data['session_token'] = session_token
         return data
